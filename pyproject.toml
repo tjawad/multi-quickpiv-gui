@@ -8,7 +8,10 @@ version = "0.1.0"
 description = "Python GUI for the Julia multi_quickPIV backend"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "numpy>=1.25",
+    "julia>=0.8",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

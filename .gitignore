@@ -9,3 +9,4 @@ build/
 .mypy_cache/
 .pytest_cache/
 .DS_Store
+test_outputs/
