@@ -51,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         type=Path,
         default=None,
-        help="Optional export base path. Writes both .npz and .h5.",
+        help="Optional export path. Supported suffixes: .npz or .h5.",
     )
 
     parser.add_argument("--inter-h", type=int, default=64)
@@ -165,8 +165,7 @@ def main() -> None:
 
         if args.out is not None:
             paths = save_pair_result(args.out, result)
-            print(f"Saved NPZ: {paths.npz_path}")
-            print(f"Saved H5 : {paths.h5_path}")
+            print(f"Saved result: {paths.path}")
 
     else:
         def progress(done: int, total: int, _result) -> None:
@@ -184,8 +183,7 @@ def main() -> None:
 
         if args.out is not None:
             paths = save_batch_result(args.out, batch_result)
-            print(f"Saved NPZ: {paths.npz_path}")
-            print(f"Saved H5 : {paths.h5_path}")
+            print(f"Saved result: {paths.path}")
 
 
 if __name__ == "__main__":
