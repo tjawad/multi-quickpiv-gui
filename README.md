@@ -127,17 +127,26 @@ Smaller steps create denser vector fields but increase computation time. Larger 
 
 ## Smoke test
 
-A command-line smoke test is available, but it requires an input image stack:
+A command-line smoke test is available, but it requires an input image stack.
+
+The repository does not include large test image stacks. To run the smoke test, place your own `.tif`, `.tiff`, or `.h5` stack somewhere locally, for example in a local `test_data/` folder.
+
+The `test_data/` folder is ignored by Git so that large microscopy files are not accidentally committed.
+
+For a single frame pair:
 
 ```bash
-python scripts/smoke_test_pipeline.py path/to/input_stack.tif
+python scripts/smoke_test_pipeline.py test_data/example_stack.h5 --mode single --frame-index 0 --out test_outputs/example_single_result.npz
 ```
 
-For batch mode:
+For a full batch run:
 
 ```bash
-python scripts/smoke_test_pipeline.py path/to/input_stack.tif --mode batch --out test_outputs/batch_result.npz
+python scripts/smoke_test_pipeline.py test_data/example_stack.h5 --mode batch --out test_outputs/example_batch_result.npz
 ```
+
+The output format is selected by the file extension passed to `--out`. Use `.npz` for a NumPy archive or `.h5` for HDF5 output.
+
 
 ## Project structure
 
