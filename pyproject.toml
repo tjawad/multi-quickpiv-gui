@@ -9,8 +9,8 @@ description = "Python GUI for the Julia multi_quickPIV backend"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "numpy>=1.25",
-    "julia>=0.8",
+    "numpy==2.2.2",
+    "julia==0.6.2",
 ]
 
 [tool.setuptools]
@@ -18,3 +18,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.scripts]
+quickpiv-gui = "multi_quickpiv_gui.gui.app:main"
