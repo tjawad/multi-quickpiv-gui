@@ -5,16 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 CorrAlg = str
-Size2D = tuple[int, int]
+SizeND = tuple[int, ...]
 
 
 @dataclass(slots=True)
 class PIVRunParams:
     """Parameters that directly control the PIV computation."""
 
-    inter_size: Size2D = (64, 64)
-    search_margin: Size2D = (128, 128)
-    step: Size2D = (32, 32)
+    inter_size: SizeND = (64, 64)
+    search_margin: SizeND = (128, 128)
+    step: SizeND = (32, 32)
     compute_sn: bool = True
     corr_alg: CorrAlg = "nsqecc"
 
@@ -25,13 +25,12 @@ class PIVRunParams:
         self._validate_size("step", self.step)
 
     @staticmethod
-    def _validate_size(name: str, value: Size2D) -> None:
-        """Validate a 2D integer size tuple."""
-        if len(value) != 2:
-            raise ValueError(f"{name} must contain exactly 2 integers.")
+    def _validate_size(name: str, value: SizeND) -> None:
+        """Validate a 2D or 3D integer size tuple."""
+        if len(value) not in {2, 3}:
+            raise ValueError(f"{name} must contain exactly 2 or 3 integers.")
 
-        h, w = value
-        if h <= 0 or w <= 0:
+        if any(component <= 0 for component in value):
             raise ValueError(f"{name} values must be greater than 0.")
 
 
