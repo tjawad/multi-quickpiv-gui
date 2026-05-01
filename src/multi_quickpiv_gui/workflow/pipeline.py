@@ -168,7 +168,7 @@ def run_batch_piv(
     params.validate()
 
     stack_arr = np.asarray(stack)
-    if stack_arr.ndim != 3:
+    if stack_arr.ndim not in {3, 4}:
         raise ValueError("Batch PIV expects a stack with shape (T, H, W) for 2D "
             "or (T, Z, Y, X) for 3D.")
     if stack_arr.shape[0] < 2:
