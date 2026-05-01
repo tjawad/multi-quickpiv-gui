@@ -153,7 +153,7 @@ The output format is selected by the file extension passed to `--out`. Use `.npz
 The repository is organized as a Python package:
 
 ```text
-multi-quickpiv-gui/
+multi_quickpiv_gui/
 |-- src/multi_quickpiv_gui/   # GUI, backend bridge, runtime, and workflow code
 |-- julia_env/                # local Julia environment for multi_quickPIV
 |-- scripts/                  # helper scripts and smoke tests
