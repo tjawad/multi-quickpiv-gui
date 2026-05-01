@@ -110,7 +110,7 @@ def normalize_stack(data: np.ndarray) -> np.ndarray:
 
 def load_stack(path: str | Path) -> LoadedStack:
     """
-    Load a TIFF/TIFF or HDF5 stack and normalize it for PIV use.
+    Load a TIFF or HDF5 stack and normalize it for PIV use.
     """
     path_obj = Path(path)
     suffix = path_obj.suffix.lower()
