@@ -28,6 +28,21 @@ class LoadedStack:
         """Return the number of frames in the stack."""
         return int(self.data.shape[0])
 
+    @property
+    def spatial_ndim(self) -> int:
+        """Return the number of spatial dimensions per time point."""
+        return self.data.ndim - 1
+
+    @property
+    def is_2d(self) -> bool:
+        """Return True if the stack contains 2D frames."""
+        return self.spatial_ndim == 2
+
+    @property
+    def is_3d(self) -> bool:
+        """Return True if the stack contains 3D volumes."""
+        return self.spatial_ndim == 3
+
 
 @dataclass(slots=True)
 class LoadedPIVResult:
@@ -39,6 +54,10 @@ class LoadedPIVResult:
     yg: np.ndarray
     sn: np.ndarray | None = None
     source_path: Path | None = None
+
+    # 3D-only fields. These stay None for 2D results.
+    w: np.ndarray | None = None
+    zg: np.ndarray | None = None
 
 
 def robust_read_h5(path: str | Path) -> tuple[np.ndarray, str]:
@@ -63,20 +82,24 @@ def robust_read_h5(path: str | Path) -> tuple[np.ndarray, str]:
 
 def normalize_stack(data: np.ndarray) -> np.ndarray:
     """
-    Normalize loaded image data into a stack with shape (T, H, W).
+    Normalize loaded image data into a time stack.
 
-    Current behavior follows the legacy GUI:
-    - if input is 2D, convert it to a 1-frame stack
-    - require at least 2 frames for PIV use
+    Supported shapes:
+    - 2D image: converted from (H, W) to (1, H, W)
+    - 2D time series: (T, H, W)
+    - 3D time series: (T, Z, Y, X)
+
+    A single 3D array is treated as a 2D time series, following the legacy GUI.
     """
     arr = np.asarray(data)
 
     if arr.ndim == 2:
         arr = arr[None, :, :]
 
-    if arr.ndim != 3:
+    if arr.ndim not in {3, 4}:
         raise ValueError(
-            f"Expected image stack with 2 or 3 dimensions, got shape {arr.shape}."
+            "Expected image stack with shape (T, H, W) for 2D PIV "
+            f"or (T, Z, Y, X) for 3D PIV, got shape {arr.shape}."
         )
 
     if arr.shape[0] < 2:
@@ -119,16 +142,20 @@ def load_saved_piv_result(path: str | Path) -> LoadedPIVResult:
         with np.load(path_obj) as data:
             u = np.array(data["U"])
             v = np.array(data["V"])
+            w = np.array(data["W"]) if "W" in data else None
             xg = np.array(data["xgrid"])
             yg = np.array(data["ygrid"])
+            zg = np.array(data["zgrid"]) if "zgrid" in data else None
             sn = np.array(data["SN"]) if "SN" in data else None
 
     elif suffix == ".h5":
         with h5py.File(path_obj, "r") as hf:
             u = np.array(hf["U"])
             v = np.array(hf["V"])
+            w = np.array(hf["W"]) if "W" in hf else None
             xg = np.array(hf["xgrid"])
             yg = np.array(hf["ygrid"])
+            zg = np.array(hf["zgrid"]) if "zgrid" in hf else None
             sn = np.array(hf["SN"]) if "SN" in hf else None
     else:
         raise ValueError("Invalid result file type. Supported: .npz, .h5")
@@ -136,8 +163,10 @@ def load_saved_piv_result(path: str | Path) -> LoadedPIVResult:
     return LoadedPIVResult(
         u=u,
         v=v,
+        w=w,
         xg=xg,
         yg=yg,
+        zg=zg,
         sn=sn,
         source_path=path_obj,
     )
