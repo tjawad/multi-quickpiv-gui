@@ -58,10 +58,13 @@ def save_piv_arrays(
     *,
     u: np.ndarray,
     v: np.ndarray,
+    w: np.ndarray | None = None,
     xg: np.ndarray,
     yg: np.ndarray,
+    zg: np.ndarray | None = None,
     sn: np.ndarray | None = None,
 ) -> ExportPath:
+    
     """
     Save one PIV result payload in the format selected by the file suffix.
 
@@ -75,9 +78,24 @@ def save_piv_arrays(
     v_arr = np.asarray(v)
     xg_arr = np.asarray(xg)
     yg_arr = np.asarray(yg)
+    w_arr = None if w is None else np.asarray(w)
+    zg_arr = None if zg is None else np.asarray(zg)
 
     if u_arr.shape != v_arr.shape:
         raise ValueError("u and v must have the same shape.")
+    
+    if xg_arr.shape != yg_arr.shape:
+        raise ValueError("xg and yg must have the same shape.")
+
+    if w_arr is not None or zg_arr is not None:
+        if w_arr is None or zg_arr is None:
+            raise ValueError("3D exports require both w and zg.")
+
+        if w_arr.shape != u_arr.shape:
+            raise ValueError("w must have the same shape as u and v.")
+
+        if zg_arr.shape != xg_arr.shape:
+            raise ValueError("zg must have the same shape as xg and yg.")
 
     sn_arr: np.ndarray | None = None
     if sn is not None:
@@ -91,9 +109,15 @@ def save_piv_arrays(
         save_kwargs = {
             "U": u_arr,
             "V": v_arr,
-            "xgrid": xg_arr,
-            "ygrid": yg_arr,
         }
+        if w_arr is not None:
+            save_kwargs["W"] = w_arr
+
+        save_kwargs["xgrid"] = xg_arr
+        save_kwargs["ygrid"] = yg_arr
+        if zg_arr is not None:
+            save_kwargs["zgrid"] = zg_arr
+
         if sn_arr is not None:
             save_kwargs["SN"] = sn_arr
 
@@ -103,8 +127,14 @@ def save_piv_arrays(
         with h5py.File(out_path, "w") as hf:
             hf.create_dataset("U", data=u_arr)
             hf.create_dataset("V", data=v_arr)
+            if w_arr is not None:
+                hf.create_dataset("W", data=w_arr)
+
             hf.create_dataset("xgrid", data=xg_arr)
             hf.create_dataset("ygrid", data=yg_arr)
+            if zg_arr is not None:
+                hf.create_dataset("zgrid", data=zg_arr)
+
             if sn_arr is not None:
                 hf.create_dataset("SN", data=sn_arr)
 
@@ -123,8 +153,10 @@ def save_pair_result(
         out_path,
         u=result.u,
         v=result.v,
+        w=result.w,
         xg=result.xg,
         yg=result.yg,
+        zg=result.zg,
         sn=result.sn,
     )
 
@@ -139,12 +171,15 @@ def save_batch_result(
 
     u = np.stack(result.u_list)
     v = np.stack(result.v_list)
+    w_list = result.w_list
+    w = np.stack(w_list) if w_list is not None else None
 
     sn_list = result.sn_list
     sn = np.stack(sn_list) if sn_list is not None else None
 
     xg = result.xg
     yg = result.yg
+    zg = result.zg
     if xg is None or yg is None:
         raise ValueError("Batch result is missing grid coordinates.")
 
@@ -152,8 +187,10 @@ def save_batch_result(
         out_path,
         u=u,
         v=v,
+        w=w,
         xg=xg,
         yg=yg,
+        zg=zg,
         sn=sn,
     )
 
