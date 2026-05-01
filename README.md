@@ -53,8 +53,8 @@ For MP4 video export, a working FFmpeg installation is useful. If FFmpeg is not 
 Clone the repository:
 
 ```bash
-git clone https://github.com/tjawad/multi-quickpiv-gui.git
-cd multi-quickpiv-gui
+git clone https://github.com/tjawad/multi_quickpiv_gui.git
+cd multi_quickpiv_gui
 ```
 
 Create the Python environment:
