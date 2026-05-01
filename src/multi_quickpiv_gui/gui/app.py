@@ -56,6 +56,7 @@ class MultiQuickPIVApp:
         self.current_result: PIVPairResult | BatchPIVResult | None = None
         self.current_export_name_hint = "piv_result"
         self.current_single_pair_indices: tuple[int, int] | None = None
+        self.analysis_mode: str = "2d"
         self.preview_state = PreviewState()
         self._status_after_id: str | None = None
         self.params_form: ParamsFormState = create_params_form_state(self.root)
@@ -141,64 +142,79 @@ class MultiQuickPIVApp:
         self.slider_frame.grid(row=0, column=1, sticky="ew")
 
     def _build_action_panel(self, parent: ttk.Frame) -> None:
-        self.btn_load = ttk.Button(parent, text="Load file", command=self.on_load_file)
-        self.btn_load_piv_result = ttk.Button(
-            parent, text="Load PIV result", command=self.on_load_piv_result
+        self.btn_load = ttk.Button(
+            parent,
+            text="Load file for 2D PIV",
+            command=self.on_load_file,
         )
-        self.btn_load_piv_result.grid(row=1, column=0, sticky="ew", pady=4)
         self.btn_load.grid(row=0, column=0, sticky="ew", pady=4)
+
+        self.btn_load_3d = ttk.Button(
+            parent,
+            text="Load file for 3D PIV",
+            command=self.on_load_3d_file,
+        )
+        self.btn_load_3d.grid(row=1, column=0, sticky="ew", pady=4)
+
+        self.btn_load_piv_result = ttk.Button(
+            parent,
+            text="Load PIV result",
+            command=self.on_load_piv_result,
+        )
+        self.btn_load_piv_result.grid(row=2, column=0, sticky="ew", pady=4)
 
         self.btn_single = ttk.Button(
             parent, text="Run single PIV", command=self.on_run_single
         )
-        self.btn_single.grid(row=2, column=0, sticky="ew", pady=4)
+        self.btn_single.grid(row=3, column=0, sticky="ew", pady=4)
 
         self.btn_batch = ttk.Button(
             parent, text="Run batch PIV", command=self.on_run_batch
         )
-        self.btn_batch.grid(row=3, column=0, sticky="ew", pady=4)
+        self.btn_batch.grid(row=4, column=0, sticky="ew", pady=4)
 
         self.btn_pause = ttk.Button(
             parent, text="Pause", command=self.on_pause_batch
         )
-        self.btn_pause.grid(row=4, column=0, sticky="ew", pady=4)
+        self.btn_pause.grid(row=5, column=0, sticky="ew", pady=4)
         self.btn_pause.config(state="disabled")
 
         self.btn_continue = ttk.Button(
             parent, text="Continue", command=self.on_continue_batch
         )
-        self.btn_continue.grid(row=5, column=0, sticky="ew", pady=4)
+        self.btn_continue.grid(row=6, column=0, sticky="ew", pady=4)
         self.btn_continue.config(state="disabled")
 
         self.btn_abort = ttk.Button(
             parent, text="Abort", command=self.on_abort_batch
         )
-        self.btn_abort.grid(row=6, column=0, sticky="ew", pady=4)
+        self.btn_abort.grid(row=7, column=0, sticky="ew", pady=4)
         self.btn_abort.config(state="disabled")
 
         self.btn_export = ttk.Button(
             parent, text="Export current result", command=self.on_export_current
         )
-        self.btn_export.grid(row=7, column=0, sticky="ew", pady=4)
+        self.btn_export.grid(row=8, column=0, sticky="ew", pady=4)
 
         self.btn_export_video = ttk.Button(
             parent, text="Export video / GIF", command=self.on_export_animation
         )
-        self.btn_export_video.grid(row=8, column=0, sticky="ew", pady=4)
+        self.btn_export_video.grid(row=9, column=0, sticky="ew", pady=4)
 
         ttk.Separator(parent, orient="horizontal").grid(
-            row=9, column=0, sticky="ew", pady=(12, 8)
+            row=10, column=0, sticky="ew", pady=(12, 8)
         )
 
         ttk.Label(parent, text="Batch progress").grid(
-            row=10, column=0, sticky="w", pady=(0, 4)
+            row=11, column=0, sticky="w", pady=(0, 4)
         )
         self.progress = ttk.Progressbar(parent, mode="determinate", length=220)
-        self.progress.grid(row=11, column=0, sticky="ew")
+        self.progress.grid(row=12, column=0, sticky="ew")
         
     def _set_batch_running_state(self) -> None:
         """Disable normal actions and enable batch controls during a running batch."""
         self.btn_load.config(state="disabled")
+        self.btn_load_3d.config(state="disabled")
         self.btn_load_piv_result.config(state="disabled")
         self.btn_single.config(state="disabled")
         self.btn_batch.config(state="disabled")
@@ -211,6 +227,7 @@ class MultiQuickPIVApp:
     def _set_batch_idle_state(self) -> None:
         """Restore normal actions after a batch stops or finishes."""
         self.btn_load.config(state="normal")
+        self.btn_load_3d.config(state="normal")
         self.btn_load_piv_result.config(state="normal")
         if self.loaded_stack is None:
             self._set_idle_state()
@@ -219,11 +236,12 @@ class MultiQuickPIVApp:
             self.btn_export.config(
                 state="normal" if self.current_result is not None else "disabled"
             )
-            self.btn_export_video.config(
-                state="normal"
-                if isinstance(self.current_result, BatchPIVResult)
-                else "disabled"
-            )
+        self.btn_export_video.config(
+            state="normal"
+            if self.analysis_mode == "2d"
+            and isinstance(self.current_result, BatchPIVResult)
+            else "disabled"
+        )
         self.btn_pause.config(state="disabled")
         self.btn_continue.config(state="disabled")
         self.btn_abort.config(state="disabled")
@@ -235,12 +253,25 @@ class MultiQuickPIVApp:
         self.btn_export_video.config(state="disabled")
 
     def _set_loaded_state(self) -> None:
+        if self.analysis_mode == "3d":
+            self.btn_single.config(state="disabled")
+            self.btn_batch.config(state="normal")
+            self.btn_export_video.config(state="disabled")
+            return
+
         self.btn_single.config(state="normal")
         self.btn_batch.config(state="normal")
         self.btn_export_video.config(state="disabled")
 
     def _show_loaded_frame(self, frame_index: int) -> None:
         if self.loaded_stack is None:
+            return
+
+        if self.analysis_mode == "3d":
+            self.preview_ax.clear()
+            self.preview_ax.set_title("3D stack loaded – export only")
+            self.preview_ax.axis("off")
+            self.preview_canvas.draw()
             return
 
         frame = self.loaded_stack.data[frame_index]
@@ -328,6 +359,13 @@ class MultiQuickPIVApp:
     
     def _show_result_for_frame_index(self, frame_index: int) -> None:
         """Show the appropriate result view for the current slider position."""
+        if self.analysis_mode == "3d" and self.loaded_piv_result is None:
+            self.preview_ax.clear()
+            self.preview_ax.set_title("3D PIV result – export only")
+            self.preview_ax.axis("off")
+            self.preview_canvas.draw()
+            return
+
         if self.loaded_piv_result is not None:
             self._show_loaded_piv_result(frame_index)
             return
@@ -408,6 +446,12 @@ class MultiQuickPIVApp:
 
         try:
             loaded = load_stack(path)
+            if not loaded.is_2d:
+                raise ValueError(
+                    "Use 'Load file for 3D PIV' for stacks with shape (T, Z, Y, X)."
+                )
+
+            self.analysis_mode = "2d"
             self.loaded_stack = loaded
             self.loaded_piv_result = None
             self.current_result = None
@@ -415,11 +459,12 @@ class MultiQuickPIVApp:
             self.current_export_name_hint = loaded.source_path.stem
             reset_preview_state(self.preview_state)
 
-            self.var_file_name.set(f"File: {loaded.source_path.name}")
+            self.var_file_name.set(f"2D PIV file: {loaded.source_path.name}")
             self.var_result.set(
-                f"Loaded: {loaded.source_path.name} – Shape: {loaded.shape}"
+                f"Loaded for 2D PIV: {loaded.source_path.name} – "
+                f"Shape (T, H, W): {loaded.shape}"
             )
-            self._set_status("File loaded", 3000)
+            self._set_status("2D file loaded", 3000)
 
             self.slider_frame.config(to=max(loaded.num_frames - 1, 0))
             self.var_frame.set(0)
@@ -432,7 +477,57 @@ class MultiQuickPIVApp:
             messagebox.showerror("Load error", str(exc))
             self.var_result.set(f"Loading failed: {exc}")
             self._set_status("Load failed")
-    
+
+    def on_load_3d_file(self) -> None:
+        """Load a 3D time-series stack for export-only 3D PIV."""
+        path = filedialog.askopenfilename(
+            filetypes=[("Image files", "*.tif *.tiff *.h5")]
+        )
+        if not path:
+            return
+
+        try:
+            loaded = load_stack(path)
+
+            if not loaded.is_3d:
+                raise ValueError(
+                    "3D PIV requires a 4D time-series stack with shape (T, Z, Y, X). "
+                    f"Loaded shape was {loaded.shape}."
+                )
+
+            self.analysis_mode = "3d"
+            self.loaded_stack = loaded
+            self.loaded_piv_result = None
+            self.current_result = None
+            self.current_single_pair_indices = None
+            self.current_export_name_hint = loaded.source_path.stem
+            reset_preview_state(self.preview_state)
+
+            self.var_file_name.set(f"3D PIV file: {loaded.source_path.name}")
+            self.var_result.set(
+                f"Loaded for 3D PIV: {loaded.source_path.name} – "
+                f"Shape (T, Z, Y, X): {loaded.shape}"
+            )
+            self._set_status("3D file loaded", 3000)
+
+            self.slider_frame.config(to=0)
+            self.var_frame.set(0)
+
+            self.preview_ax.clear()
+            self.preview_ax.set_title("3D stack loaded – export only")
+            self.preview_ax.axis("off")
+            self.preview_canvas.draw()
+
+            self._set_loaded_state()
+            self.btn_export.config(state="disabled")
+            self.btn_export_video.config(state="disabled")
+            self.progress["value"] = 0
+
+        except Exception as exc:
+            messagebox.showerror("Load 3D error", str(exc))
+            self.var_result.set(f"Loading 3D file failed: {exc}")
+            self._set_status("Load 3D failed")
+
     def on_load_piv_result(self) -> None:
         """Load a saved PIV result for vector-field-only inspection."""
         path = filedialog.askopenfilename(
@@ -443,7 +538,8 @@ class MultiQuickPIVApp:
 
         try:
             loaded = load_saved_piv_result(path)
-
+            
+            self.analysis_mode = "2d"
             self.loaded_stack = None
             self.loaded_piv_result = loaded
             self.current_result = None
@@ -477,6 +573,13 @@ class MultiQuickPIVApp:
         if self.loaded_stack is None:
             messagebox.showerror("Error", "No file loaded.")
             return
+        
+        if self.analysis_mode == "3d":
+            messagebox.showerror(
+                "Single PIV error",
+                "Single PIV preview is not available for 3D mode. Use batch export instead.",
+            )
+            return
 
         num_frames = self.loaded_stack.num_frames
         t1 = simpledialog.askinteger(
@@ -490,7 +593,10 @@ class MultiQuickPIVApp:
             return
 
         try:
-            params = build_workflow_params(self.params_form)
+            params = build_workflow_params(
+                self.params_form,
+                spatial_ndim=self._current_spatial_ndim(),
+            )
             result = run_piv_pair(
                 self.loaded_stack.data[t1],
                 self.loaded_stack.data[t1 + 1],
@@ -537,12 +643,19 @@ class MultiQuickPIVApp:
                 return
 
         try:
-            params = build_workflow_params(self.params_form)
+            params = build_workflow_params(
+                self.params_form,
+                spatial_ndim=self._current_spatial_ndim(),
+            )
         except Exception as exc:
             messagebox.showerror("Batch error", str(exc))
             self.var_result.set(f"Batch PIV failed: {exc}")
             self._set_status("Batch PIV failed")
             return
+        
+        if self.analysis_mode == "3d":
+            params.postprocess.median_despike.enabled = False
+            params.postprocess.sn_filter.enabled = False
 
         total_pairs = self.loaded_stack.num_frames - 1
         self.batch.start(
@@ -595,7 +708,9 @@ class MultiQuickPIVApp:
             self.current_export_name_hint = self._build_export_name_hint(mode="batch")
             self.batch.reset()
             self._set_batch_idle_state()
-            self.btn_export_video.config(state="normal")
+            self.btn_export_video.config(
+                state="normal" if self.analysis_mode == "2d" else "disabled"
+            )
 
             if (
                 options is not None
@@ -629,7 +744,11 @@ class MultiQuickPIVApp:
             self.batch.append_result(pair_result)
             self.progress["value"] = self.batch.next_pair_index
 
-            if self.batch.options is not None and self.batch.options.preview_mode == "live":
+            if (
+                self.analysis_mode == "2d"
+                and self.batch.options is not None
+                and self.batch.options.preview_mode == "live"
+            ):
                 self._show_pair_result(
                     pair_result,
                     title=f"Batch PIV: Frame {t} → {t + 1}",
@@ -804,12 +923,11 @@ class MultiQuickPIVApp:
     def show_piv_info(self) -> None:
         """Show an informational pop-up about the current PIV capabilities."""
         msg = (
-            "This program is currently configured for 2D PIV analysis only.\n\n"
-            "In principle, the code can be extended to 3D PIV by adding the "
-            "required data handling and correlation routines.\n\n"
+            "This program supports 2D PIV with preview and export.\n\n"
+            "Experimental 3D PIV support is available for export-only batch runs "
+            "using time-series stacks shaped as (T, Z, Y, X).\n\n"
             "The current implementation uses an FFT-based windowed "
-            "cross-correlation algorithm (via the multi_quickPIV library) "
-            "for the PIV evaluation."
+            "cross-correlation algorithm via the multi_quickPIV library."
         )
         messagebox.showinfo("PIV Configuration Information", msg)
 
@@ -829,7 +947,11 @@ class MultiQuickPIVApp:
                 self.var_status.set("")
                 self._status_after_id = None
 
-            self._status_after_id = self.root.after(timeout_ms, _clear_status)  
+            self._status_after_id = self.root.after(timeout_ms, _clear_status)
+
+    def _current_spatial_ndim(self) -> int:
+        """Return the active PIV spatial dimensionality."""
+        return 3 if self.analysis_mode == "3d" else 2
 
 
 def main() -> None:
