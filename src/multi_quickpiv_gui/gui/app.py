@@ -17,9 +17,11 @@ from multi_quickpiv_gui.backend.export import (
 from multi_quickpiv_gui.backend.io import (
     LoadedPIVResult,
     LoadedStack,
+    load_3d_tiff_sequence,
     load_saved_piv_result,
     load_stack,
 )
+
 from multi_quickpiv_gui.gui.preview import (
     PreviewState,
     draw_loaded_frame,
@@ -480,18 +482,33 @@ class MultiQuickPIVApp:
 
     def on_load_3d_file(self) -> None:
         """Load a 3D time-series stack for export-only 3D PIV."""
-        path = filedialog.askopenfilename(
-            filetypes=[("Image files", "*.tif *.tiff *.h5")]
+        paths = filedialog.askopenfilenames(
+            title="Load file(s) for 3D PIV",
+            filetypes=[
+                ("3D PIV input files", "*.h5 *.tif *.tiff"),
+                ("HDF5 files", "*.h5"),
+                ("TIFF files", "*.tif *.tiff"),
+            ],
         )
-        if not path:
+        if not paths:
             return
 
         try:
-            loaded = load_stack(path)
+            if len(paths) == 1:
+                loaded = load_stack(paths[0])
+
+                if not loaded.is_3d:
+                    raise ValueError(
+                        "3D PIV requires either a single 4D stack with shape "
+                        "(T, Z, Y, X), or multiple 3D TIFF time-point files. "
+                        f"Loaded shape was {loaded.shape}."
+                    )
+            else:
+                loaded = load_3d_tiff_sequence(paths)
 
             if not loaded.is_3d:
                 raise ValueError(
-                    "3D PIV requires a 4D time-series stack with shape (T, Z, Y, X). "
+                    "3D PIV requires data with shape (T, Z, Y, X). "
                     f"Loaded shape was {loaded.shape}."
                 )
 
@@ -505,7 +522,7 @@ class MultiQuickPIVApp:
 
             self.var_file_name.set(f"3D PIV file: {loaded.source_path.name}")
             self.var_result.set(
-                f"Loaded for 3D PIV: {loaded.source_path.name} – "
+                f"Loaded for 3D PIV: {loaded.dataset_name or loaded.source_path.name} – "
                 f"Shape (T, Z, Y, X): {loaded.shape}"
             )
             self._set_status("3D file loaded", 3000)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Sequence
 
 import h5py
 import numpy as np
@@ -130,6 +131,59 @@ def load_stack(path: str | Path) -> LoadedStack:
         dataset_name=dataset_name,
     )
 
+def load_3d_tiff_sequence(paths: Sequence[str | Path]) -> LoadedStack:
+    """
+    Load separate 3D TIFF volumes as a 3D PIV time series.
+
+    Each input TIFF is expected to contain one 3D volume with shape (Z, Y, X).
+    The returned stack has shape (T, Z, Y, X), where T is the number of
+    selected TIFF files.
+    """
+    path_objs = [Path(path) for path in paths]
+
+    if len(path_objs) < 2:
+        raise ValueError(
+            "3D PIV from separate TIFF volumes requires at least two files."
+        )
+
+    path_objs = sorted(path_objs, key=lambda path: path.name)
+
+    volumes: list[np.ndarray] = []
+    expected_shape: tuple[int, ...] | None = None
+
+    for path_obj in path_objs:
+        suffix = path_obj.suffix.lower()
+        if suffix not in {".tif", ".tiff"}:
+            raise ValueError(
+                "3D TIFF sequence loading only supports .tif and .tiff files."
+            )
+
+        volume = np.asarray(tifffile.imread(path_obj))
+
+        if volume.ndim != 3:
+            raise ValueError(
+                "Each selected TIFF must contain one 3D volume with shape "
+                f"(Z, Y, X). File {path_obj.name} had shape {volume.shape}."
+            )
+
+        if expected_shape is None:
+            expected_shape = volume.shape
+        elif volume.shape != expected_shape:
+            raise ValueError(
+                "All selected 3D TIFF volumes must have the same shape. "
+                f"Expected {expected_shape}, but {path_obj.name} had "
+                f"shape {volume.shape}."
+            )
+
+        volumes.append(volume)
+
+    stack = np.stack(volumes, axis=0)
+
+    return LoadedStack(
+        data=stack,
+        source_path=path_objs[0],
+        dataset_name=f"3D TIFF sequence ({len(path_objs)} files)",
+    )
 
 def load_saved_piv_result(path: str | Path) -> LoadedPIVResult:
     """
