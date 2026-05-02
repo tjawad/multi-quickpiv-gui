@@ -647,15 +647,19 @@ class MultiQuickPIVApp:
                 self.params_form,
                 spatial_ndim=self._current_spatial_ndim(),
             )
+
+            if self.analysis_mode == "3d":
+                # 3D computeSN currently fails inside multi_quickPIV.compute_SN
+                # with a BoundsError from 4D indexing on a 3D correlation matrix.
+                params.run.compute_sn = False
+                params.postprocess.median_despike.enabled = False
+                params.postprocess.sn_filter.enabled = False
+
         except Exception as exc:
             messagebox.showerror("Batch error", str(exc))
             self.var_result.set(f"Batch PIV failed: {exc}")
             self._set_status("Batch PIV failed")
             return
-        
-        if self.analysis_mode == "3d":
-            params.postprocess.median_despike.enabled = False
-            params.postprocess.sn_filter.enabled = False
 
         total_pairs = self.loaded_stack.num_frames - 1
         self.batch.start(
