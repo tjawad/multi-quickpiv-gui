@@ -235,16 +235,15 @@ These tests check:
 The repository is organized as a Python package:
 
 ```text
-multi_quickpiv_gui/
+multi_quickPIV_GUI/
 |-- src/multi_quickpiv_gui/   # GUI, backend bridge, runtime, and workflow code
 |-- julia_env/                # local Julia environment for multi_quickPIV
 |-- scripts/                  # helper scripts and smoke tests
-|-- docs/                     # documentation material
-|-- tests/                    # tests
-|-- requirements.txt          # pinned Python dependencies
+|-- requirements.txt          # Python dependencies
 |-- environment.yml           # portable conda environment
 |-- environment-windows-lock.yml
-`-- pyproject.toml            # Python package and launcher configuration
+|-- pyproject.toml            # Python package and launcher configuration
+`-- README.md
 ```
 
 The Julia backend is managed through the local `julia_env/` directory. This keeps the Julia dependency setup separate from the user's global Julia environment.
