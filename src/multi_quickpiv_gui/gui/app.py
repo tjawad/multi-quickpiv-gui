@@ -53,6 +53,11 @@ class MultiQuickPIVApp:
         self.root.title("multi_quickPIV GUI")
         self.root.geometry("1500x850")
 
+        try:
+            self.root.state("zoomed")  # Windows: start maximized
+        except tk.TclError:
+            self.root.attributes("-zoomed", True)  # Linux fallback
+
         self.loaded_stack: LoadedStack | None = None
         self.loaded_piv_result: LoadedPIVResult | None = None
         self.current_result: PIVPairResult | BatchPIVResult | None = None
