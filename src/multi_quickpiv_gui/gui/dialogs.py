@@ -96,3 +96,61 @@ class BatchRunDialog(simpledialog.Dialog):
             export_after_run=bool(self.var_export_after.get()),
             export_format=self.var_export_format.get(),
         )
+
+class BatchExportDialog(simpledialog.Dialog):
+    """Modal dialog for configuring an export-only batch run."""
+
+    def __init__(self, parent) -> None:
+        self.result: BatchRunOptions | None = None
+        self.var_export_format = tk.StringVar(value="npz")
+        super().__init__(parent, title="3D Batch PIV Export")
+
+    def body(self, master):
+        ttk.Label(
+            master,
+            text=(
+                "3D PIV is export-only.\n"
+                "Choose the output format for the batch result."
+            ),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
+        export_frame = ttk.LabelFrame(master, text="Export format", padding=8)
+        export_frame.grid(row=1, column=0, columnspan=2, sticky="ew")
+
+        ttk.Radiobutton(
+            export_frame,
+            text="NumPy zipped (.npz)",
+            value="npz",
+            variable=self.var_export_format,
+        ).grid(row=0, column=0, sticky="w")
+
+        ttk.Radiobutton(
+            export_frame,
+            text="HDF5 (.h5)",
+            value="h5",
+            variable=self.var_export_format,
+        ).grid(row=1, column=0, sticky="w")
+
+        return export_frame
+
+    def buttonbox(self):
+        box = ttk.Frame(self)
+
+        ttk.Button(box, text="Run and export", command=self.ok).pack(
+            side="left", padx=5, pady=5
+        )
+        ttk.Button(box, text="Cancel", command=self.cancel).pack(
+            side="left", padx=5, pady=5
+        )
+
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+
+        box.pack()
+
+    def apply(self) -> None:
+        self.result = BatchRunOptions(
+            preview_mode="off",
+            export_after_run=True,
+            export_format=self.var_export_format.get(),
+        )

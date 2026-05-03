@@ -29,7 +29,11 @@ from multi_quickpiv_gui.gui.preview import (
     ensure_preview_artists,
     reset_preview_state,
 )
-from multi_quickpiv_gui.gui.dialogs import BatchRunDialog, BatchRunOptions
+from multi_quickpiv_gui.gui.dialogs import (
+    BatchExportDialog,
+    BatchRunDialog,
+    BatchRunOptions,
+)
 from multi_quickpiv_gui.runtime.batch import BatchRuntimeState
 
 from multi_quickpiv_gui.gui.params_form import (
@@ -406,8 +410,12 @@ class MultiQuickPIVApp:
         self._show_pair_result(self.current_result, title=title)
 
     def _ask_batch_run_options(self) -> BatchRunOptions | None:
-        """Show the batch-run options dialog."""
-        dialog = BatchRunDialog(self.root)
+        """Show the batch-run options dialog for the current analysis mode."""
+        if self.analysis_mode == "3d":
+            dialog = BatchExportDialog(self.root)
+        else:
+            dialog = BatchRunDialog(self.root)
+
         return dialog.result
 
     def _ask_batch_export_path(self, *, file_format: str) -> Path | None:
