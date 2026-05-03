@@ -41,6 +41,7 @@ from multi_quickpiv_gui.gui.params_form import (
     build_params_panel,
     build_workflow_params,
     create_params_form_state,
+    set_sn_controls_enabled,
 )
 
 from multi_quickpiv_gui.workflow.pipeline import (
@@ -467,6 +468,7 @@ class MultiQuickPIVApp:
                 )
 
             self.analysis_mode = "2d"
+            set_sn_controls_enabled(self.params_form, enabled=True)
             self.loaded_stack = loaded
             self.loaded_piv_result = None
             self.current_result = None
@@ -531,12 +533,20 @@ class MultiQuickPIVApp:
             self.current_result = None
             self.current_single_pair_indices = None
             self.current_export_name_hint = loaded.source_path.stem
+
+            # 3D computeSN and SN filtering are currently unavailable because
+            # multi_quickPIV.compute_SN fails for 3D inputs. Median despike remains usable.
+            self.params_form.compute_sn.set(False)
+            self.params_form.sn_filter.set(False)
+            set_sn_controls_enabled(self.params_form, enabled=False)
+
             reset_preview_state(self.preview_state)
 
             self.var_file_name.set(f"3D PIV file: {loaded.source_path.name}")
             self.var_result.set(
                 f"Loaded for 3D PIV: {loaded.dataset_name or loaded.source_path.name} – "
-                f"Shape (T, Z, Y, X): {loaded.shape}"
+                f"Shape (T, Z, Y, X): {loaded.shape} | "
+                "computeSN/SN filtering disabled for 3D"
             )
             self._set_status("3D file loaded", 3000)
 
@@ -570,6 +580,7 @@ class MultiQuickPIVApp:
             loaded = load_saved_piv_result(path)
             
             self.analysis_mode = "2d"
+            set_sn_controls_enabled(self.params_form, enabled=True)
             self.loaded_stack = None
             self.loaded_piv_result = loaded
             self.current_result = None
@@ -703,7 +714,12 @@ class MultiQuickPIVApp:
         self.progress["value"] = 0
 
         self._set_batch_running_state()
-        self._set_status("Batch started")
+
+        if self.analysis_mode == "3d":
+            self._set_status("3D batch started: export-only, computeSN off")
+        else:
+            self._set_status("Batch started")
+
         self.root.after(1, self._run_next_batch_step)
 
     def _run_next_batch_step(self) -> None:
@@ -759,12 +775,21 @@ class MultiQuickPIVApp:
                     self._set_status("Batch finished, export failed")
                 return
 
-            self.var_result.set(
-                f"Batch PIV complete: {len(result.pair_results)} pairs | "
-                f"grid={result.xg.shape if result.xg is not None else None} | "
-                f"SN={result.sn_list is not None}"
-            )
-            self._set_status("Batch PIV complete", 3000)
+            if self.analysis_mode == "3d":
+                self.var_result.set(
+                    f"3D batch PIV complete: {len(result.pair_results)} pairs | "
+                    f"grid={result.xg.shape if result.xg is not None else None} | "
+                    "SN=False"
+                )
+                self._set_status("3D batch PIV complete", 3000)
+            else:
+                self.var_result.set(
+                    f"Batch PIV complete: {len(result.pair_results)} pairs | "
+                    f"grid={result.xg.shape if result.xg is not None else None} | "
+                    f"SN={result.sn_list is not None}"
+                )
+                self._set_status("Batch PIV complete", 3000)
+
             return
 
         t = self.batch.next_pair_index

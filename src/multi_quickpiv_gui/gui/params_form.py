@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import tkinter as tk
 from tkinter import ttk
 
@@ -38,6 +38,9 @@ class ParamsFormState:
 
     sn_filter: tk.BooleanVar
     sn_min: tk.StringVar
+    
+    compute_sn_widget: ttk.Checkbutton | None = field(default=None, init=False)
+    sn_filter_widget: ttk.Checkbutton | None = field(default=None, init=False)
 
 
 def create_params_form_state(master: tk.Misc) -> ParamsFormState:
@@ -112,11 +115,12 @@ def build_params_panel(parent: ttk.Frame, form: ParamsFormState) -> None:
         text="Z is used only for 3D PIV",
     ).grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
-    ttk.Checkbutton(
+    form.compute_sn_widget = ttk.Checkbutton(
         piv_frame,
         text="computeSN",
         variable=form.compute_sn,
-    ).grid(row=5, column=0, sticky="w", pady=(8, 0))
+    )
+    form.compute_sn_widget.grid(row=5, column=0, sticky="w", pady=(8, 0))
 
     ttk.Label(piv_frame, text="corr_alg").grid(row=6, column=0, sticky="w")
     corr_alg_combo = ttk.Combobox(
@@ -152,11 +156,12 @@ def build_params_panel(parent: ttk.Frame, form: ParamsFormState) -> None:
     sn_frame = ttk.LabelFrame(parent, text="SN Filter", padding=8)
     sn_frame.grid(row=2, column=0, sticky="ew")
 
-    ttk.Checkbutton(
+    form.sn_filter_widget = ttk.Checkbutton(
         sn_frame,
         text="Enable SN filtering",
         variable=form.sn_filter,
-    ).grid(row=0, column=0, columnspan=2, sticky="w")
+    )
+    form.sn_filter_widget.grid(row=0, column=0, columnspan=2, sticky="w")
 
     ttk.Label(sn_frame, text="SN minimum").grid(row=1, column=0, sticky="w")
     ttk.Entry(
@@ -178,6 +183,17 @@ def _read_float(var: tk.Variable, field_name: str) -> float:
         return float(var.get())
     except Exception as exc:
         raise ValueError(f"Invalid float for {field_name}.") from exc
+
+
+def set_sn_controls_enabled(form: ParamsFormState, *, enabled: bool) -> None:
+    """Enable or disable SN-related controls."""
+    state = "normal" if enabled else "disabled"
+
+    if form.compute_sn_widget is not None:
+        form.compute_sn_widget.config(state=state)
+
+    if form.sn_filter_widget is not None:
+        form.sn_filter_widget.config(state=state)
 
 
 def build_workflow_params(
