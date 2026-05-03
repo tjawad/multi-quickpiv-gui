@@ -1,34 +1,54 @@
-# multi_quickPIV GUI - 2D PIV with Python and Julia
+# multi_quickPIV GUI - 2D and export-only 3D PIV with Python and Julia
 
-This project provides a graphical user interface for processing two-dimensional Particle Image Velocimetry (2D PIV) data.
+This project provides a graphical user interface for processing Particle Image Velocimetry (PIV) data using the Julia [`multi_quickPIV`](https://github.com/Marc-3d/multi_quickPIV) backend.
+
+The GUI currently supports:
+
+- **2D PIV** with image/vector preview, single-pair analysis, batch analysis, post-processing, and export.
+- **3D PIV** as an experimental export-only workflow for time-series volume data.
 
 The interface is built with Python and Tkinter. The actual PIV computation is carried out in Julia using the [`multi_quickPIV`](https://github.com/Marc-3d/multi_quickPIV) backend.
 
 The goal of this project is to make `multi_quickPIV` easier to use for users who prefer a visual workflow instead of directly calling the Julia package from code.
 
-The program is currently designed for 2D PIV. An extension to 3D PIV would in principle be possible, but is not currently implemented in this GUI.
+3D PIV support is currently focused on batch computation and export. The GUI intentionally does not preview or visualize 3D image volumes or 3D vector fields.
 
 ## Features
 
-The GUI can load image stacks in TIFF format (`.tif`, `.tiff`) and HDF5 format (`.h5`).
+The GUI can load PIV input data in TIFF format (`.tif`, `.tiff`) and HDF5 format (`.h5`).
 
-Two main evaluation modes are available:
+Supported input formats are:
+
+- **2D PIV time series**: a stack shaped as `(T, H, W)`, where `T` is time/frame index.
+- **3D PIV time series**: a stack shaped as `(T, Z, Y, X)`.
+- **Separate 3D TIFF time points**: multiple TIFF files where each file is one 3D volume shaped as `(Z, Y, X)`. These are internally stacked as `(T, Z, Y, X)`.
+
+Two main 2D evaluation modes are available:
 
 - **Single PIV**: performs the PIV calculation between one selected frame and the following frame.
 - **Batch PIV**: automatically processes all consecutive frame pairs in the loaded image stack.
 
-To improve the quality of the vector fields, optional filtering tools are available:
+For 3D PIV, the GUI supports:
 
-- median despiking for suppressing outlier vectors
-- signal-to-noise filtering, if signal-to-noise values are computed by the backend
+- loading a single 4D HDF5/TIFF stack
+- loading multiple 3D TIFF time-point files
+- running export-only batch 3D PIV
+- exporting `U`, `V`, `W`, `xgrid`, `ygrid`, and `zgrid`
 
-During processing, the GUI provides an interactive preview. Individual frames can be viewed, and computed velocity vectors are displayed as a quiver plot over the image data.
+To improve vector fields, optional filtering tools are available:
+
+- median despiking for 2D and 3D vector fields
+- signal-to-noise filtering for 2D PIV only
+
+During 2D processing, the GUI provides an interactive preview. Individual frames can be viewed, and computed velocity vectors are displayed as a quiver plot over the image data.
+
+3D processing is export-only. The GUI does not display 3D image data or 3D vector fields.
 
 The results can be exported as:
 
 - NumPy archive (`.npz`)
 - HDF5 file (`.h5`)
-- optional video or GIF showing the vector field evolution over time
+- optional video or GIF for 2D batch vector-field evolution
 
 ## Requirements
 
@@ -53,8 +73,8 @@ For MP4 video export, a working FFmpeg installation is useful. If FFmpeg is not 
 Clone the repository:
 
 ```bash
-git clone https://github.com/tjawad/multi_quickpiv_gui.git
-cd multi_quickpiv_gui
+git clone https://github.com/tjawad/multi_quickPIV_GUI.git
+cd multi_quickPIV_GUI
 ```
 
 Create the Python environment:
@@ -104,15 +124,34 @@ quickpiv-gui
 
 ## Basic workflow
 
-A typical workflow is:
+### 2D PIV workflow
+
+A typical 2D workflow is:
 
 1. Start the GUI with `quickpiv-gui`.
-2. Load a TIFF or HDF5 image stack.
-3. Adjust the PIV parameters if needed.
-4. Run a single PIV calculation first to check the result.
-5. If the result looks reasonable, run batch PIV.
-6. Export the computed vector fields as NPZ/HDF5.
-7. Optionally export a video or GIF of the vector fields.
+2. Select **Load file for 2D PIV**.
+3. Load a TIFF or HDF5 image stack shaped as `(T, H, W)`.
+4. Adjust the PIV parameters if needed.
+5. Run a single PIV calculation first to check the result.
+6. If the result looks reasonable, run batch PIV.
+7. Export the computed vector fields as NPZ/HDF5.
+8. Optionally export a video or GIF of the 2D vector fields.
+
+### 3D PIV workflow
+
+A typical 3D workflow is:
+
+1. Start the GUI with `quickpiv-gui`.
+2. Select **Load file for 3D PIV**.
+3. Load either:
+   - one 4D HDF5/TIFF stack shaped as `(T, Z, Y, X)`, or
+   - multiple 3D TIFF time-point files, each shaped as `(Z, Y, X)`.
+4. Adjust the PIV parameters if needed.
+5. Run batch PIV.
+6. Choose the export format, either NPZ or HDF5.
+7. Export the 3D vector fields.
+
+3D PIV is currently export-only. No 3D preview, 3D vector-field visualization, or video/GIF export is provided.
 
 ## PIV parameters
 
@@ -123,7 +162,33 @@ The main PIV parameters are:
 - **step**: spacing between neighboring vectors.
 - **computeSN**: enables signal-to-noise computation in the Julia backend.
 
+The GUI displays spatial parameters in user-facing order:
+
+```text
+X, Y, Z
+```
+
+Internally, these are converted to the array order expected by the backend:
+
+```text
+2D PIV:
+  backend order = (Y, X)
+
+3D PIV:
+  backend order = (Z, Y, X)
+```
+
+For 2D PIV, the `Z` parameter field is ignored.
+
 Smaller steps create denser vector fields but increase computation time. Larger interrogation windows can make the correlation more stable but reduce spatial resolution.
+
+### 3D signal-to-noise limitation
+
+At present, `computeSN` and signal-to-noise filtering are disabled in 3D mode.
+
+This is because 3D `computeSN=true` currently triggers a backend error inside `multi_quickPIV.compute_SN`. The GUI therefore forces `computeSN=False` for 3D PIV until the backend issue is resolved.
+
+Median despiking remains available for 3D vector fields.
 
 ## Smoke test
 
@@ -147,6 +212,23 @@ python scripts/smoke_test_pipeline.py test_data/example_stack.h5 --mode batch --
 
 The output format is selected by the file extension passed to `--out`. Use `.npz` for a NumPy archive or `.h5` for HDF5 output.
 
+Additional smoke tests are available for the 3D development path:
+
+```bash
+python scripts/smoke_test_3d_bridge.py
+python scripts/smoke_test_3d_batch_export.py
+python scripts/smoke_test_3d_median_despike.py
+python scripts/smoke_test_params_mapping.py
+python scripts/smoke_test_3d_tiff_sequence_loading.py
+```
+
+These tests check:
+
+- Python-to-Julia 3D PIV bridge behavior
+- 3D batch export/reload behavior
+- 3D median despiking
+- GUI parameter mapping from `X, Y, Z` to backend tuple order
+- loading separate 3D TIFF volumes as a time series
 
 ## Project structure
 
@@ -171,6 +253,14 @@ The Julia backend is managed through the local `julia_env/` directory. This keep
 
 This GUI is a frontend for `multi_quickPIV`. The Julia backend itself remains a separate Julia-only project.
 
-The GUI currently focuses on 2D PIV workflows. The underlying `multi_quickPIV` backend supports more advanced functionality, but not all backend features are exposed in the GUI yet.
+The GUI supports 2D PIV as the main interactive workflow. The 3D PIV workflow is currently experimental and export-only.
+
+Currently intentional 3D limitations:
+
+- no 3D image preview
+- no 3D vector-field preview
+- no saved 3D result viewing
+- no 3D video/GIF export
+- no 3D signal-to-noise computation or SN filtering until the backend issue is resolved
 
 This project is under active development.
