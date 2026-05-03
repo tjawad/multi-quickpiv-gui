@@ -280,10 +280,7 @@ class MultiQuickPIVApp:
             return
 
         if self.analysis_mode == "3d":
-            self.preview_ax.clear()
-            self.preview_ax.set_title("3D stack loaded – export only")
-            self.preview_ax.axis("off")
-            self.preview_canvas.draw()
+            self._show_3d_summary(title="3D stack loaded – export only")
             return
 
         frame = self.loaded_stack.data[frame_index]
@@ -294,6 +291,58 @@ class MultiQuickPIVApp:
             frame,
             title=f"Frame {frame_index}",
         )
+    
+    def _show_3d_summary(self, *, title: str = "3D PIV: export only") -> None:
+        """Show a text summary for 3D mode instead of an image/vector preview."""
+        self.preview_ax.clear()
+        self.preview_ax.axis("off")
+        self.preview_ax.set_title(title)
+
+        if self.loaded_stack is None:
+            summary = "No 3D stack loaded."
+        else:
+            stack_label = self.loaded_stack.dataset_name or self.loaded_stack.source_path.name
+            num_pairs = max(self.loaded_stack.num_frames - 1, 0)
+
+            median_state = (
+                "enabled" if bool(self.params_form.despike.get()) else "disabled"
+            )
+
+            summary = "\n".join(
+                [
+                    "3D PIV is export-only in this GUI.",
+                    "",
+                    f"Input: {stack_label}",
+                    f"Shape (T, Z, Y, X): {self.loaded_stack.shape}",
+                    f"Time points: {self.loaded_stack.num_frames}",
+                    f"Frame pairs: {num_pairs}",
+                    "",
+                    "Available:",
+                    "  - batch 3D PIV",
+                    "  - export to NPZ or HDF5",
+                    "  - U, V, W vector components",
+                    "  - xgrid, ygrid, zgrid coordinates",
+                    f"  - 3D median despike: {median_state}",
+                    "",
+                    "Unavailable for 3D mode:",
+                    "  - image/vector preview",
+                    "  - video/GIF export",
+                    "  - computeSN",
+                    "  - SN filtering",
+                ]
+            )
+
+        self.preview_ax.text(
+            0.03,
+            0.97,
+            summary,
+            transform=self.preview_ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=11,
+            family="monospace",
+        )
+        self.preview_canvas.draw()
 
     def _show_pair_result(self, result: PIVPairResult, *, title: str) -> None:
         ensure_preview_artists(
@@ -372,10 +421,7 @@ class MultiQuickPIVApp:
     def _show_result_for_frame_index(self, frame_index: int) -> None:
         """Show the appropriate result view for the current slider position."""
         if self.analysis_mode == "3d" and self.loaded_piv_result is None:
-            self.preview_ax.clear()
-            self.preview_ax.set_title("3D PIV result – export only")
-            self.preview_ax.axis("off")
-            self.preview_canvas.draw()
+            self._show_3d_summary(title="3D PIV result – export only")
             return
 
         if self.loaded_piv_result is not None:
@@ -553,10 +599,7 @@ class MultiQuickPIVApp:
             self.slider_frame.config(to=0)
             self.var_frame.set(0)
 
-            self.preview_ax.clear()
-            self.preview_ax.set_title("3D stack loaded – export only")
-            self.preview_ax.axis("off")
-            self.preview_canvas.draw()
+            self._show_3d_summary(title="3D stack loaded – export only")
 
             self._set_loaded_state()
             self.btn_export.config(state="disabled")
