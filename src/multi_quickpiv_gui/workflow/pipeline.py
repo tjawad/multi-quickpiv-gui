@@ -112,10 +112,10 @@ def run_piv_pair(
         )
     elif img1_arr.ndim == 3:
         post = params.postprocess
-        if post.median_despike.enabled or post.sn_filter.enabled:
+        if post.sn_filter.enabled:
             raise ValueError(
-                "3D PIV post-processing is not implemented yet. "
-                "Disable median despiking and SN filtering for 3D runs."
+                "3D SN filtering is not implemented yet because 3D computeSN "
+                "is currently blocked by a multi_quickPIV backend error."
             )
 
         raw = run_piv_3d_julia(
@@ -137,6 +137,7 @@ def run_piv_pair(
         raw.v,
         params=params,
         sn=raw.sn,
+        w=raw.w,
     )
 
     return PIVPairResult(
@@ -148,7 +149,7 @@ def run_piv_pair(
         yg=raw.yg,
         sn=processed.sn,
         sn_replaced=processed.sn_replaced,
-        w=raw.w,
+        w=processed.w,
         zg=raw.zg,
     )
 
