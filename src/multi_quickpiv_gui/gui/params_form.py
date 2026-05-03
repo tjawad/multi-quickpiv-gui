@@ -28,6 +28,7 @@ class ParamsFormState:
     step_x: tk.StringVar
     step_y: tk.StringVar
     step_z: tk.StringVar
+    mode_note: tk.StringVar
 
     compute_sn: tk.BooleanVar
     corr_alg: tk.StringVar
@@ -42,10 +43,27 @@ class ParamsFormState:
     compute_sn_widget: ttk.Checkbutton | None = field(default=None, init=False)
     sn_filter_widget: ttk.Checkbutton | None = field(default=None, init=False)
 
+def _auto_fill_following_fields(
+    primary: tk.StringVar,
+    followers: tuple[tk.StringVar, ...],
+) -> None:
+    """
+    Auto-fill later fields from the primary field.
+
+    Whenever the primary field changes, all follower fields are updated to match.
+    The follower fields remain editable afterward.
+    """
+    def _on_change(*_args) -> None:
+        new_value = primary.get()
+
+        for follower in followers:
+            follower.set(new_value)
+
+    primary.trace_add("write", _on_change)
 
 def create_params_form_state(master: tk.Misc) -> ParamsFormState:
     """Create the Tk variables used by the parameter form."""
-    return ParamsFormState(
+    form = ParamsFormState(
         intersize_x=tk.StringVar(master=master, value="64"),
         intersize_y=tk.StringVar(master=master, value="64"),
         intersize_z=tk.StringVar(master=master, value="64"),
@@ -55,6 +73,10 @@ def create_params_form_state(master: tk.Misc) -> ParamsFormState:
         step_x=tk.StringVar(master=master, value="32"),
         step_y=tk.StringVar(master=master, value="32"),
         step_z=tk.StringVar(master=master, value="32"),
+        mode_note=tk.StringVar(
+            master=master,
+            value="2D mode: X and Y are used. Z is ignored.",
+        ),
         compute_sn=tk.BooleanVar(master=master, value=True),
         corr_alg=tk.StringVar(master=master, value="nsqecc"),
         despike=tk.BooleanVar(master=master, value=False),
@@ -63,6 +85,21 @@ def create_params_form_state(master: tk.Misc) -> ParamsFormState:
         sn_filter=tk.BooleanVar(master=master, value=False),
         sn_min=tk.StringVar(master=master, value="1.0"),
     )
+
+    _auto_fill_following_fields(
+        form.intersize_x,
+        (form.intersize_y, form.intersize_z),
+    )
+    _auto_fill_following_fields(
+        form.search_x,
+        (form.search_y, form.search_z),
+    )
+    _auto_fill_following_fields(
+        form.step_x,
+        (form.step_y, form.step_z),
+    )
+
+    return form
 
 
 def build_params_panel(parent: ttk.Frame, form: ParamsFormState) -> None:
@@ -112,7 +149,7 @@ def build_params_panel(parent: ttk.Frame, form: ParamsFormState) -> None:
 
     ttk.Label(
         piv_frame,
-        text="Z is used only for 3D PIV",
+        textvariable=form.mode_note,
     ).grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
     form.compute_sn_widget = ttk.Checkbutton(
@@ -195,6 +232,18 @@ def set_sn_controls_enabled(form: ParamsFormState, *, enabled: bool) -> None:
     if form.sn_filter_widget is not None:
         form.sn_filter_widget.config(state=state)
 
+def set_parameter_mode_note(
+    form: ParamsFormState,
+    *,
+    spatial_ndim: int,
+) -> None:
+    """Update the parameter-panel note for 2D or 3D mode."""
+    if spatial_ndim == 2:
+        form.mode_note.set("2D mode: X and Y are used. Z is ignored.")
+    elif spatial_ndim == 3:
+        form.mode_note.set("3D mode: X, Y, and Z/depth are used.")
+    else:
+        raise ValueError("spatial_ndim must be 2 or 3.")
 
 def build_workflow_params(
     form: ParamsFormState,

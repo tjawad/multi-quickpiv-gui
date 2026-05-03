@@ -41,6 +41,7 @@ from multi_quickpiv_gui.gui.params_form import (
     build_params_panel,
     build_workflow_params,
     create_params_form_state,
+    set_parameter_mode_note,
     set_sn_controls_enabled,
 )
 
@@ -515,6 +516,7 @@ class MultiQuickPIVApp:
 
             self.analysis_mode = "2d"
             set_sn_controls_enabled(self.params_form, enabled=True)
+            set_parameter_mode_note(self.params_form, spatial_ndim=2)
             self.loaded_stack = loaded
             self.loaded_piv_result = None
             self.current_result = None
@@ -585,6 +587,7 @@ class MultiQuickPIVApp:
             self.params_form.compute_sn.set(False)
             self.params_form.sn_filter.set(False)
             set_sn_controls_enabled(self.params_form, enabled=False)
+            set_parameter_mode_note(self.params_form, spatial_ndim=3)
 
             reset_preview_state(self.preview_state)
 
@@ -624,6 +627,7 @@ class MultiQuickPIVApp:
             
             self.analysis_mode = "2d"
             set_sn_controls_enabled(self.params_form, enabled=True)
+            set_parameter_mode_note(self.params_form, spatial_ndim=2)
             self.loaded_stack = None
             self.loaded_piv_result = loaded
             self.current_result = None
