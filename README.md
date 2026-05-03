@@ -222,6 +222,22 @@ python scripts/smoke_test_params_mapping.py
 python scripts/smoke_test_3d_tiff_sequence_loading.py
 ```
 
+A smoke-test runner is also available:
+
+```bash
+python scripts/run_smoke_tests.py
+```
+
+By default, this runs the lightweight Python-only smoke tests.
+
+To also run the Julia-backed smoke tests, use:
+
+```bash
+python scripts/run_smoke_tests.py --include-julia
+```
+
+The Julia-backed tests initialize the Julia runtime and may take longer to run.
+
 These tests check:
 
 - Python-to-Julia 3D PIV bridge behavior
@@ -229,6 +245,46 @@ These tests check:
 - 3D median despiking
 - GUI parameter mapping from `X, Y, Z` to backend tuple order
 - loading separate 3D TIFF volumes as a time series
+
+## 3D real-data validation
+
+The 3D workflow has been locally validated using cropped time-point volumes from the Pereyra/QuickPIV example dataset.
+
+The validation input was a cropped HDF5 stack with shape:
+
+```text
+(T, Z, Y, X) = (2, 128, 256, 256)
+```
+
+The validation checked the following path:
+
+```text
+load 3D stack
+→ run 3D batch PIV
+→ apply 3D median despike
+→ export NPZ
+→ reload NPZ
+→ export HDF5
+→ reload HDF5
+```
+
+The resulting vector-field shapes were:
+
+```text
+Per frame pair:
+  U, V, W: (4, 8, 8)
+
+Batch export:
+  U, V, W: (1, 4, 8, 8)
+
+Grids:
+  xgrid, ygrid, zgrid: (4, 8, 8)
+
+SN:
+  None, as expected for 3D mode
+```
+
+The cropped validation data are not included in the repository because microscopy datasets are large and the `test_data/` folder is intentionally ignored by Git.
 
 ## Project structure
 
