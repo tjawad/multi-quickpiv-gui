@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import tkinter as tk
-from tkinter import simpledialog, ttk
+from tkinter import messagebox, simpledialog, ttk
 
 
 @dataclass(slots=True)
@@ -13,7 +13,8 @@ class BatchRunOptions:
 
     preview_mode: str = "live"
     export_after_run: bool = False
-    export_format: str = "h5"
+    export_npz: bool = False
+    export_h5: bool = False
     export_vtk: bool = False
 
 
@@ -92,55 +93,64 @@ class BatchRunDialog(simpledialog.Dialog):
         self.export_format_combo.config(state=state)
 
     def apply(self) -> None:
+        export_format = self.var_export_format.get()
         self.result = BatchRunOptions(
             preview_mode=self.var_preview_mode.get(),
             export_after_run=bool(self.var_export_after.get()),
-            export_format=self.var_export_format.get(),
+            export_npz=(export_format == "npz" and bool(self.var_export_after.get())),
+            export_h5=(export_format == "h5" and bool(self.var_export_after.get())),
             export_vtk=False,
         )
 
 class BatchExportDialog(simpledialog.Dialog):
-    """Modal dialog for configuring an export-only batch run."""
+    """Modal dialog for configuring 3D batch export outputs."""
 
     def __init__(self, parent) -> None:
         self.result: BatchRunOptions | None = None
-        self.var_export_format = tk.StringVar(value="npz")
+        self.var_export_npz = tk.BooleanVar(value=False)
+        self.var_export_h5 = tk.BooleanVar(value=False)
         self.var_export_vtk = tk.BooleanVar(value=True)
         super().__init__(parent, title="3D Batch PIV Export")
 
     def body(self, master):
         ttk.Label(
             master,
-            text=(
-                "3D PIV is export-only.\n"
-                "Choose the output format for the batch result."
-            ),
+            text="Choose which outputs to create for the 3D batch result.",
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
-        export_frame = ttk.LabelFrame(master, text="Export format", padding=8)
-        export_frame.grid(row=1, column=0, columnspan=2, sticky="ew")
-
-        ttk.Radiobutton(
-            export_frame,
-            text="HDF5 (.h5)",
-            value="h5",
-            variable=self.var_export_format,
-        ).grid(row=0, column=0, sticky="w")
-
-        ttk.Radiobutton(
-            export_frame,
-            text="NumPy zipped (.npz)",
-            value="npz",
-            variable=self.var_export_format,
-        ).grid(row=1, column=0, sticky="w")
+        store_frame = ttk.LabelFrame(
+            master,
+            text="Store vector data",
+            padding=8,
+        )
+        store_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 10))
 
         ttk.Checkbutton(
-            export_frame,
-            text="Also export quickPIV-style VTK files for ParaView (.vtk)",
-            variable=self.var_export_vtk,
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
+            store_frame,
+            text="HDF5 (.h5)",
+            variable=self.var_export_h5,
+        ).grid(row=0, column=0, sticky="w")
 
-        return export_frame
+        ttk.Checkbutton(
+            store_frame,
+            text="NumPy zipped (.npz)",
+            variable=self.var_export_npz,
+        ).grid(row=1, column=0, sticky="w")
+
+        paraview_frame = ttk.LabelFrame(
+            master,
+            text="Visualize with ParaView",
+            padding=8,
+        )
+        paraview_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
+
+        ttk.Checkbutton(
+            paraview_frame,
+            text="VTK (.vtk)",
+            variable=self.var_export_vtk,
+        ).grid(row=0, column=0, sticky="w")
+
+        return store_frame
 
     def buttonbox(self):
         box = ttk.Frame(self)
@@ -161,6 +171,23 @@ class BatchExportDialog(simpledialog.Dialog):
         self.result = BatchRunOptions(
             preview_mode="off",
             export_after_run=True,
-            export_format=self.var_export_format.get(),
+            export_npz=bool(self.var_export_npz.get()),
+            export_h5=bool(self.var_export_h5.get()),
             export_vtk=bool(self.var_export_vtk.get()),
         )
+
+    def validate(self) -> bool:
+        if not (
+            self.var_export_npz.get()
+            or self.var_export_h5.get()
+            or self.var_export_vtk.get()
+        ):
+            messagebox.showerror(
+                "Export selection required",
+                "Please select at least one export option.",
+                parent=self,
+            )
+            return False
+        return True
+
+

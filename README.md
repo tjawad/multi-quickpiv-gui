@@ -1,17 +1,17 @@
-# multi_quickPIV GUI - 2D and export-only 3D PIV with Python and Julia
+# multi_quickPIV GUI - 2D and 3D PIV with Python and Julia
 
 This project provides a graphical user interface for processing Particle Image Velocimetry (PIV) data using the Julia [`multi_quickPIV`](https://github.com/Marc-3d/multi_quickPIV) backend.
 
-The GUI currently supports:
+The GUI supports:
 
 - **2D PIV** with image/vector preview, single-pair analysis, batch analysis, post-processing, and export.
-- **3D PIV** as an experimental export-only workflow for time-series volume data.
+- **3D PIV** for batch processing of time-series volume data, with export to analysis formats and ParaView-compatible VTK files.
 
 The interface is built with Python and Tkinter. The actual PIV computation is carried out in Julia using the [`multi_quickPIV`](https://github.com/Marc-3d/multi_quickPIV) backend.
 
 The goal of this project is to make `multi_quickPIV` easier to use for users who prefer a visual workflow instead of directly calling the Julia package from code.
 
-3D PIV support is currently focused on batch computation and export. The GUI intentionally does not preview or visualize 3D image volumes or 3D vector fields.
+For 3D PIV, the GUI computes vector fields from time-series volume data and saves the results for downstream analysis and visualization. The GUI does not render 3D volumes or 3D vector fields internally; 3D vector-field visualization is done manually by opening the exported VTK files in ParaView.
 
 ## Features
 
@@ -32,8 +32,9 @@ For 3D PIV, the GUI supports:
 
 - loading a single 4D HDF5/TIFF stack
 - loading multiple 3D TIFF time-point files
-- running export-only batch 3D PIV
-- exporting `U`, `V`, `W`, `xgrid`, `ygrid`, and `zgrid`
+- running batch 3D PIV
+- exporting vector components and grid coordinates
+- exporting ParaView-compatible VTK files for manual 3D visualization
 
 To improve vector fields, optional filtering tools are available:
 
@@ -42,12 +43,13 @@ To improve vector fields, optional filtering tools are available:
 
 During 2D processing, the GUI provides an interactive preview. Individual frames can be viewed, and computed velocity vectors are displayed as a quiver plot over the image data.
 
-3D processing is export-only. The GUI does not display 3D image data or 3D vector fields.
+For 3D processing, computed vector fields are saved to disk. Visualization of 3D vector fields is handled outside the GUI by opening the exported VTK files in ParaView.
 
 The results can be exported as:
 
-- NumPy archive (`.npz`)
-- HDF5 file (`.h5`)
+- NumPy archive (`.npz`) for storing vector components and grid coordinates
+- HDF5 file (`.h5`) for storing vector components and grid coordinates
+- VTK files (`.vtk`) for visualizing 3D vector fields in ParaView
 - optional video or GIF for 2D batch vector-field evolution
 
 ## Requirements
@@ -148,10 +150,28 @@ A typical 3D workflow is:
    - multiple 3D TIFF time-point files, each shaped as `(Z, Y, X)`.
 4. Adjust the PIV parameters if needed.
 5. Run batch PIV.
-6. Choose the export format, either NPZ or HDF5.
+6. Choose one or more output options:
+   - HDF5 (`.h5`) for storing vector data
+   - NumPy zipped (`.npz`) for storing vector data
+   - VTK (`.vtk`) for ParaView visualization
 7. Export the 3D vector fields.
+8. Open the exported VTK file(s) manually in ParaView to visualize the 3D vector field.
 
-3D PIV is currently export-only. No 3D preview, 3D vector-field visualization, or video/GIF export is provided.
+## Visualizing 3D PIV results in ParaView
+
+The GUI exports 3D vector fields as legacy ASCII VTK files (`.vtk`). These files are intended to be opened manually in ParaView.
+
+A typical ParaView workflow is:
+
+1. Open ParaView.
+2. Select **File > Open**.
+3. Choose the exported `.vtk` file.
+4. Click **Apply** in the Properties panel.
+5. Use the **Glyph** filter to display the vector field as arrows.
+6. In the Glyph settings, select the vector array named `directions`.
+7. Adjust glyph scale and density as needed for the dataset.
+
+For batch 3D PIV results, the GUI writes one VTK file per processed frame pair. Open the desired time-pair file in ParaView, or load multiple files if you want to inspect several computed vector fields.
 
 ## PIV parameters
 
@@ -210,9 +230,9 @@ For a full batch run:
 python scripts/smoke_test_pipeline.py test_data/example_stack.h5 --mode batch --out test_outputs/example_batch_result.npz
 ```
 
-The output format is selected by the file extension passed to `--out`. Use `.npz` for a NumPy archive or `.h5` for HDF5 output.
+The output format is selected by the file extension passed to `--out`. Use `.npz` for a NumPy archive or `.h5` for HDF5 output. VTK export is available through the GUI 3D batch export workflow.
 
-Additional smoke tests are available for the 3D development path:
+Additional smoke tests are available for the 3D workflow:
 
 ```bash
 python scripts/smoke_test_3d_bridge.py
@@ -248,7 +268,7 @@ These tests check:
 
 ## 3D real-data validation
 
-The 3D workflow has been locally validated using cropped time-point volumes from the Pereyra/QuickPIV example dataset.
+The 3D workflow has been locally validated using cropped time-point volumes from the example dataset associated with Pereyra et al. (2021), the original quickPIV publication.
 
 The validation input was a cropped HDF5 stack with shape:
 
@@ -259,13 +279,14 @@ The validation input was a cropped HDF5 stack with shape:
 The validation checked the following path:
 
 ```text
-load 3D stack
+→ load 3D stack
 → run 3D batch PIV
 → apply 3D median despike
 → export NPZ
 → reload NPZ
 → export HDF5
 → reload HDF5
+→ export VTK
 ```
 
 The resulting vector-field shapes were:
@@ -308,14 +329,14 @@ The Julia backend is managed through the local `julia_env/` directory. This keep
 
 This GUI is a frontend for `multi_quickPIV`. The Julia backend itself remains a separate Julia-only project.
 
-The GUI supports 2D PIV as the main interactive workflow. The 3D PIV workflow is currently experimental and export-only.
+The GUI supports interactive 2D PIV and batch-based 3D PIV. For 3D datasets, the GUI computes and exports vector fields; 3D visualization is performed manually in ParaView using the exported VTK files.
 
-Currently intentional 3D limitations:
+Current 3D design choices and limitations:
 
-- no 3D image preview
-- no 3D vector-field preview
-- no saved 3D result viewing
-- no 3D video/GIF export
-- no 3D signal-to-noise computation or SN filtering until the backend issue is resolved
+- 3D image volumes are not previewed inside the GUI
+- 3D vector fields are visualized in ParaView, not inside the GUI
+- saved 3D result viewing is not provided inside the GUI
+- 3D video/GIF export is not provided
+- 3D signal-to-noise computation and SN filtering are disabled until the backend issue is resolved
 
 This project is under active development.

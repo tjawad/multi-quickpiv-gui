@@ -10,12 +10,6 @@ from matplotlib.figure import Figure
 
 from multi_quickpiv_gui.backend.export import (
     save_batch_result,
-    save_pair_result,
-    save_piv_animation,
-)
-
-from multi_quickpiv_gui.backend.export import (
-    save_batch_result,
     save_batch_vector_fields_to_vtk,
     save_pair_result,
     save_piv_animation,
@@ -288,8 +282,7 @@ class MultiQuickPIVApp:
             return
 
         if self.analysis_mode == "3d":
-            self._show_3d_summary(title="3D stack loaded – export only")
-            return
+            self._show_3d_summary(title="3D stack loaded")
 
         frame = self.loaded_stack.data[frame_index]
         draw_loaded_frame(
@@ -300,7 +293,7 @@ class MultiQuickPIVApp:
             title=f"Frame {frame_index}",
         )
     
-    def _show_3d_summary(self, *, title: str = "3D PIV: export only") -> None:
+    def _show_3d_summary(self, *, title: str = "3D PIV") -> None:
         """Show a text summary for 3D mode instead of an image/vector preview."""
         self.preview_ax.clear()
         self.preview_ax.axis("off")
@@ -318,7 +311,7 @@ class MultiQuickPIVApp:
 
             summary = "\n".join(
                 [
-                    "3D PIV is export-only in this GUI.",
+                    "3D PIV results are saved for external visualization.",
                     "",
                     f"Input: {stack_label}",
                     f"Shape (T, Z, Y, X): {self.loaded_stack.shape}",
@@ -327,13 +320,17 @@ class MultiQuickPIVApp:
                     "",
                     "Available:",
                     "  - batch 3D PIV",
-                    "  - export to NPZ or HDF5",
+                    "  - export to HDF5 and/or NPZ",
+                    "  - export VTK for ParaView",
                     "  - U, V, W vector components",
                     "  - xgrid, ygrid, zgrid coordinates",
                     f"  - 3D median despike: {median_state}",
                     "",
-                    "Unavailable for 3D mode:",
-                    "  - image/vector preview",
+                    "3D visualization:",
+                    "  - open exported VTK files manually in ParaView",
+                    "",
+                    "Not provided for 3D mode:",
+                    "  - in-GUI 3D image/vector preview",
                     "  - video/GIF export",
                     "  - computeSN",
                     "  - SN filtering",
@@ -429,7 +426,7 @@ class MultiQuickPIVApp:
     def _show_result_for_frame_index(self, frame_index: int) -> None:
         """Show the appropriate result view for the current slider position."""
         if self.analysis_mode == "3d" and self.loaded_piv_result is None:
-            self._show_3d_summary(title="3D PIV result – export only")
+            self._show_3d_summary(title="3D PIV result")
             return
 
         if self.loaded_piv_result is not None:
@@ -473,47 +470,51 @@ class MultiQuickPIVApp:
 
         return dialog.result
 
-    def _ask_batch_export_path(self, *, file_format: str) -> Path | None:
-        """Ask for the export path before starting the batch run."""
-        ext = ".npz" if file_format == "npz" else ".h5"
-        filetypes = (
-            [("NumPy zipped", "*.npz")]
-            if file_format == "npz"
-            else [("HDF5", "*.h5")]
-        )
-
+    def _ask_batch_export_path(self) -> Path | None:
+        """Ask for the base export path before starting the batch run."""
         save_path = filedialog.asksaveasfilename(
-            title="Export batch PIV result",
+            title="Choose base name for batch PIV export",
             initialfile=self._build_export_name_hint(mode="batch"),
-            defaultextension=ext,
-            filetypes=filetypes,
+            defaultextension="",
+            filetypes=[("All files", "*.*")],
         )
         if not save_path:
             return None
-        return Path(save_path)
+
+        path = Path(save_path)
+
+        # Treat any typed suffix as part of the stem selection workflow.
+        if path.suffix.lower() in {".npz", ".h5", ".vtk"}:
+            path = path.with_suffix("")
+
+        return path
 
     def _export_batch_result_direct(
         self,
         result: BatchPIVResult,
         out_path: Path,
         *,
+        export_npz: bool = False,
+        export_h5: bool = False,
         export_vtk: bool = False,
     ) -> None:
         """Export a finished batch result directly to the chosen path."""
-        export_path = save_batch_result(out_path, result)
+        written_names: list[str] = []
 
-        vtk_paths = []
+        if export_npz:
+            npz_path = save_batch_result(out_path.with_suffix(".npz"), result)
+            written_names.append(npz_path.path.name)
+
+        if export_h5:
+            h5_path = save_batch_result(out_path.with_suffix(".h5"), result)
+            written_names.append(h5_path.path.name)
+
         if export_vtk:
-            vtk_paths = save_batch_vector_fields_to_vtk(export_path.path, result)
+            vtk_paths = save_batch_vector_fields_to_vtk(out_path, result)
+            written_names.append(f"{len(vtk_paths)} VTK file(s)")
 
         self._set_status("Export complete", 3000)
-
-        if vtk_paths:
-            self.var_result.set(
-                f"Saved: {export_path.path.name} + {len(vtk_paths)} VTK file(s)"
-            )
-        else:
-            self.var_result.set(f"Saved: {export_path.path.name}")
+        self.var_result.set("Saved: " + ", ".join(written_names))
 
     def _on_frame_slider(self, _value: str) -> None:
         if self.loaded_stack is None and self.loaded_piv_result is None:
@@ -564,7 +565,7 @@ class MultiQuickPIVApp:
             self._set_status("Load failed")
 
     def on_load_3d_file(self) -> None:
-        """Load a 3D time-series stack for export-only 3D PIV."""
+        """Load a 3D time-series stack for 3D PIV."""
         paths = filedialog.askopenfilenames(
             title="Load file(s) for 3D PIV",
             filetypes=[
@@ -622,7 +623,7 @@ class MultiQuickPIVApp:
             self.slider_frame.config(to=0)
             self.var_frame.set(0)
 
-            self._show_3d_summary(title="3D stack loaded – export only")
+            self._show_3d_summary(title="3D stack loaded")
 
             self._set_loaded_state()
             self.btn_export.config(state="disabled")
@@ -744,9 +745,7 @@ class MultiQuickPIVApp:
 
         export_path: Path | None = None
         if options.export_after_run:
-            export_path = self._ask_batch_export_path(
-                file_format=options.export_format
-            )
+            export_path = self._ask_batch_export_path()
             if export_path is None:
                 return
 
@@ -783,7 +782,7 @@ class MultiQuickPIVApp:
         self._set_batch_running_state()
 
         if self.analysis_mode == "3d":
-            self._set_status("3D batch started: export-only, computeSN off")
+            self._set_status("3D batch started, computeSN off")
         else:
             self._set_status("Batch started")
 
@@ -838,6 +837,8 @@ class MultiQuickPIVApp:
                     self._export_batch_result_direct(
                         result,
                         export_path,
+                        export_npz=(options is not None and options.export_npz),
+                        export_h5=(options is not None and options.export_h5),
                         export_vtk=(
                             self.analysis_mode == "3d"
                             and options is not None
@@ -1058,8 +1059,10 @@ class MultiQuickPIVApp:
         """Show an informational pop-up about the current PIV capabilities."""
         msg = (
             "This program supports 2D PIV with preview and export.\n\n"
-            "Experimental 3D PIV support is available for export-only batch runs "
-            "using time-series stacks shaped as (T, Z, Y, X).\n\n"
+            "3D PIV is available for batch processing of time-series stacks shaped "
+            "as (T, Z, Y, X). The computed 3D vector fields can be saved as HDF5, "
+            "NPZ, and VTK files. VTK files can be opened manually in ParaView for "
+            "3D visualization.\n\n"
             "The current implementation uses an FFT-based windowed "
             "cross-correlation algorithm via the multi_quickPIV library."
         )
