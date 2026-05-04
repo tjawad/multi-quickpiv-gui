@@ -1,6 +1,7 @@
 """Minimal Tkinter app shell for the extracted multi_quickPIV GUI pipeline."""
 
 from pathlib import Path
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 import tkinter.ttk as ttk
@@ -76,6 +77,8 @@ class MultiQuickPIVApp:
         self.params_form: ParamsFormState = create_params_form_state(self.root)
 
         self.batch = BatchRuntimeState()
+        self._batch_started_at: float | None = None
+        self._last_pair_elapsed_seconds: float | None = None
 
         self._build_variables()
         self._build_layout()
@@ -776,6 +779,9 @@ class MultiQuickPIVApp:
             params=params,
         )
 
+        self._batch_started_at = time.perf_counter()
+        self._last_pair_elapsed_seconds = None
+
         self.progress["maximum"] = max(self.batch.total_pairs, 1)
         self.progress["value"] = 0
 
@@ -795,6 +801,8 @@ class MultiQuickPIVApp:
 
         if self.batch.abort_requested:
             self.batch.reset()
+            self._batch_started_at = None
+            self._last_pair_elapsed_seconds = None
             self.current_result = None
             self.current_single_pair_indices = None
             self._set_batch_idle_state()
@@ -852,12 +860,25 @@ class MultiQuickPIVApp:
                 return
 
             if self.analysis_mode == "3d":
+                total_elapsed = None
+                if self._batch_started_at is not None:
+                    total_elapsed = time.perf_counter() - self._batch_started_at
+
+                elapsed_text = (
+                    f" | total time={total_elapsed:.1f} s"
+                    if total_elapsed is not None
+                    else ""
+                )
+
                 self.var_result.set(
                     f"3D batch PIV complete: {len(result.pair_results)} pairs | "
                     f"grid={result.xg.shape if result.xg is not None else None} | "
-                    "SN=False"
+                    f"SN=False{elapsed_text}"
                 )
-                self._set_status("3D batch PIV complete", 3000)
+                self._set_status(
+                    f"3D batch PIV complete{elapsed_text}",
+                    3000,
+                )
             else:
                 self.var_result.set(
                     f"Batch PIV complete: {len(result.pair_results)} pairs | "
@@ -871,11 +892,28 @@ class MultiQuickPIVApp:
         t = self.batch.next_pair_index
 
         try:
+            pair_start = time.perf_counter()
+
+            if self.analysis_mode == "3d":
+                self.progress["value"] = t + 0.5
+                self.var_result.set(
+                    f"Processing 3D pair {t + 1}/{self.batch.total_pairs}..."
+                )
+                self._set_status(
+                    f"Processing 3D pair {t + 1}/{self.batch.total_pairs}; "
+                    "this may take time for large volumes."
+                )
+                self.root.update_idletasks()
+
             pair_result = run_piv_pair(
                 self.loaded_stack.data[t],
                 self.loaded_stack.data[t + 1],
                 params=self.batch.params,
             )
+
+            pair_elapsed = time.perf_counter() - pair_start
+            self._last_pair_elapsed_seconds = pair_elapsed
+
             self.batch.append_result(pair_result)
             self.progress["value"] = self.batch.next_pair_index
 
@@ -889,9 +927,19 @@ class MultiQuickPIVApp:
                     title=f"Batch PIV: Frame {t} → {t + 1}",
                 )
 
-            self._set_status(
-                f"Processed pair {self.batch.next_pair_index}/{self.batch.total_pairs}"
-            )
+            if self.analysis_mode == "3d":
+                self.var_result.set(
+                    f"Processed 3D pair {self.batch.next_pair_index}/"
+                    f"{self.batch.total_pairs} in {pair_elapsed:.1f} s"
+                )
+                self._set_status(
+                    f"Processed 3D pair {self.batch.next_pair_index}/"
+                    f"{self.batch.total_pairs} in {pair_elapsed:.1f} s"
+                )
+            else:
+                self._set_status(
+                    f"Processed pair {self.batch.next_pair_index}/{self.batch.total_pairs}"
+                )
             self.root.after(1, self._run_next_batch_step)
 
         except Exception as exc:
