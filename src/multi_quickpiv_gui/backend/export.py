@@ -194,6 +194,166 @@ def save_batch_result(
         sn=sn,
     )
 
+_NUMPY_TO_VTK_TYPE = {
+    np.dtype(np.uint8): "unsigned_char",
+    np.dtype(np.int8): "char",
+    np.dtype(np.uint16): "unsigned_short",
+    np.dtype(np.int16): "short",
+    np.dtype(np.uint32): "unsigned_int",
+    np.dtype(np.int32): "int",
+    np.dtype(np.uint64): "unsigned_long",
+    np.dtype(np.int64): "long",
+    np.dtype(np.float32): "float",
+    np.dtype(np.float64): "double",
+}
+
+
+def _vtk_data_type(array: np.ndarray) -> str:
+    """Return the legacy VTK scalar type name for a NumPy array."""
+    dtype = np.asarray(array).dtype
+    data_type = _NUMPY_TO_VTK_TYPE.get(dtype)
+    if data_type is None:
+        raise ValueError(f"Unrecognized data type for VTK export: {dtype}")
+    return data_type
+
+
+def _parse_vtk_filename(
+    filename: str | Path,
+    *,
+    path: str | Path = "",
+    suffix: str = ".vtk",
+) -> Path:
+    """
+    Mirror quickPIV's parseFilename behavior for VTK output.
+
+    If no suffix is present, append .vtk.
+    If path is given and filename has no directory, prepend path.
+    """
+    out_path = Path(filename)
+
+    if path and not out_path.is_absolute() and out_path.parent == Path("."):
+        out_path = Path(path) / out_path
+
+    if out_path.suffix == "":
+        out_path = out_path.with_suffix(suffix)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    return out_path
+
+
+def vector_field_to_vtk(
+    filename: str | Path,
+    u: np.ndarray,
+    v: np.ndarray,
+    w: np.ndarray,
+    *,
+    path: str | Path = "",
+    mode: str = "w",
+) -> ExportPath:
+    """
+    Store one 3D vector field as a legacy ASCII VTK file.
+
+    This mirrors quickPIV's vectorFieldToVTK logic as closely as possible:
+    - one vector field per .vtk file
+    - DATASET STRUCTURED_GRID
+    - integer grid coordinates
+    - VECTORS directions <type>
+    - vector component order written as V, U, W
+
+    The GUI stores 3D arrays in (Z, Y, X) order.
+    """
+    u_arr = np.asarray(u)
+    v_arr = np.asarray(v)
+    w_arr = np.asarray(w)
+
+    if u_arr.ndim != 3:
+        raise ValueError("VTK vector-field export requires 3D U, V, W arrays.")
+    if v_arr.shape != u_arr.shape or w_arr.shape != u_arr.shape:
+        raise ValueError("U, V, and W must have the same shape for VTK export.")
+
+    data_type = _vtk_data_type(u_arr)
+
+    nz, ny, nx = u_arr.shape
+    npoints = int(u_arr.size)
+
+    out_path = _parse_vtk_filename(filename, path=path)
+
+    with open(out_path, mode, encoding="utf-8") as io:
+        io.write("# vtk DataFile Version 2.0\n")
+        io.write("PIV3D.jl vector field\n")
+        io.write("ASCII\n")
+        io.write("DATASET STRUCTURED_GRID\n")
+        io.write(f"DIMENSIONS {nx} {ny} {nz}\n")
+        io.write(f"POINTS {npoints} int\n")
+
+        # Match quickPIV's simple integer grid-coordinate output.
+        # quickPIV writes 1-based x/y/z coordinates.
+        for z in range(nz):
+            for y in range(ny):
+                for x in range(nx):
+                    io.write(f"{x + 1} {y + 1} {z + 1}\n")
+
+        io.write(f"POINT_DATA {npoints}\n")
+        io.write(f"VECTORS directions {data_type}\n")
+
+        # Match quickPIV's component order: V, U, W.
+        for z in range(nz):
+            for y in range(ny):
+                for x in range(nx):
+                    io.write(
+                        f"{v_arr[z, y, x].item()} "
+                        f"{u_arr[z, y, x].item()} "
+                        f"{w_arr[z, y, x].item()}\n"
+                    )
+
+    return ExportPath(path=out_path)
+
+
+def save_batch_vector_fields_to_vtk(
+    out_path: str | Path,
+    result: BatchPIVResult,
+) -> list[ExportPath]:
+    """
+    Save every 3D frame-pair vector field in a batch result as quickPIV-style VTK.
+
+    For one pair:
+        result.npz -> result.vtk
+
+    For multiple pairs:
+        result.npz -> result_000.vtk, result_001.vtk, ...
+    """
+    if not result.pair_results:
+        raise ValueError("Cannot export an empty batch result to VTK.")
+
+    base_path = Path(out_path)
+    if base_path.suffix:
+        base_path = base_path.with_suffix("")
+
+    written: list[ExportPath] = []
+    total = len(result.pair_results)
+
+    for index, pair_result in enumerate(result.pair_results):
+        if pair_result.w is None:
+            raise ValueError("VTK export requires 3D PIV results with W components.")
+
+        if total == 1:
+            vtk_path = base_path.with_suffix(".vtk")
+        else:
+            vtk_path = base_path.with_name(f"{base_path.name}_{index:03d}").with_suffix(
+                ".vtk"
+            )
+
+        written.append(
+            vector_field_to_vtk(
+                vtk_path,
+                pair_result.u,
+                pair_result.v,
+                pair_result.w,
+            )
+        )
+
+    return written
+
 
 def save_piv_animation(
     out_path: str | Path,

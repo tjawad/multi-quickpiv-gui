@@ -13,7 +13,8 @@ class BatchRunOptions:
 
     preview_mode: str = "live"
     export_after_run: bool = False
-    export_format: str = "npz"
+    export_format: str = "h5"
+    export_vtk: bool = False
 
 
 class BatchRunDialog(simpledialog.Dialog):
@@ -95,6 +96,7 @@ class BatchRunDialog(simpledialog.Dialog):
             preview_mode=self.var_preview_mode.get(),
             export_after_run=bool(self.var_export_after.get()),
             export_format=self.var_export_format.get(),
+            export_vtk=False,
         )
 
 class BatchExportDialog(simpledialog.Dialog):
@@ -103,6 +105,7 @@ class BatchExportDialog(simpledialog.Dialog):
     def __init__(self, parent) -> None:
         self.result: BatchRunOptions | None = None
         self.var_export_format = tk.StringVar(value="npz")
+        self.var_export_vtk = tk.BooleanVar(value=True)
         super().__init__(parent, title="3D Batch PIV Export")
 
     def body(self, master):
@@ -119,17 +122,23 @@ class BatchExportDialog(simpledialog.Dialog):
 
         ttk.Radiobutton(
             export_frame,
-            text="NumPy zipped (.npz)",
-            value="npz",
+            text="HDF5 (.h5)",
+            value="h5",
             variable=self.var_export_format,
         ).grid(row=0, column=0, sticky="w")
 
         ttk.Radiobutton(
             export_frame,
-            text="HDF5 (.h5)",
-            value="h5",
+            text="NumPy zipped (.npz)",
+            value="npz",
             variable=self.var_export_format,
         ).grid(row=1, column=0, sticky="w")
+
+        ttk.Checkbutton(
+            export_frame,
+            text="Also export quickPIV-style VTK files for ParaView (.vtk)",
+            variable=self.var_export_vtk,
+        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
 
         return export_frame
 
@@ -153,4 +162,5 @@ class BatchExportDialog(simpledialog.Dialog):
             preview_mode="off",
             export_after_run=True,
             export_format=self.var_export_format.get(),
+            export_vtk=bool(self.var_export_vtk.get()),
         )

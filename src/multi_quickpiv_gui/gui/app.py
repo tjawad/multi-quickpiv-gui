@@ -14,6 +14,13 @@ from multi_quickpiv_gui.backend.export import (
     save_piv_animation,
 )
 
+from multi_quickpiv_gui.backend.export import (
+    save_batch_result,
+    save_batch_vector_fields_to_vtk,
+    save_pair_result,
+    save_piv_animation,
+)
+
 from multi_quickpiv_gui.backend.io import (
     LoadedPIVResult,
     LoadedStack,
@@ -489,11 +496,24 @@ class MultiQuickPIVApp:
         self,
         result: BatchPIVResult,
         out_path: Path,
+        *,
+        export_vtk: bool = False,
     ) -> None:
         """Export a finished batch result directly to the chosen path."""
         export_path = save_batch_result(out_path, result)
+
+        vtk_paths = []
+        if export_vtk:
+            vtk_paths = save_batch_vector_fields_to_vtk(export_path.path, result)
+
         self._set_status("Export complete", 3000)
-        self.var_result.set(f"Saved: {export_path.path.name}")
+
+        if vtk_paths:
+            self.var_result.set(
+                f"Saved: {export_path.path.name} + {len(vtk_paths)} VTK file(s)"
+            )
+        else:
+            self.var_result.set(f"Saved: {export_path.path.name}")
 
     def _on_frame_slider(self, _value: str) -> None:
         if self.loaded_stack is None and self.loaded_piv_result is None:
@@ -815,7 +835,15 @@ class MultiQuickPIVApp:
                 and export_path is not None
             ):
                 try:
-                    self._export_batch_result_direct(result, export_path)
+                    self._export_batch_result_direct(
+                        result,
+                        export_path,
+                        export_vtk=(
+                            self.analysis_mode == "3d"
+                            and options is not None
+                            and options.export_vtk
+                        ),
+                    )
                 except Exception as exc:
                     messagebox.showerror("Export error", str(exc))
                     self.var_result.set(f"Batch export failed: {exc}")
