@@ -79,6 +79,8 @@ class MultiQuickPIVApp:
         self.batch = BatchRuntimeState()
         self._batch_started_at: float | None = None
         self._last_pair_elapsed_seconds: float | None = None
+        self._last_3d_batch_elapsed_seconds: float | None = None
+        self._last_3d_export_summary: str | None = None
 
         self._build_variables()
         self._build_layout()
@@ -312,22 +314,45 @@ class MultiQuickPIVApp:
                 "enabled" if bool(self.params_form.despike.get()) else "disabled"
             )
 
-            summary = "\n".join(
+            summary_lines = [
+                "3D PIV results are saved for external visualization and analysis.",
+                "",
+                f"Input: {stack_label}",
+                f"Shape (T, Z, Y, X): {self.loaded_stack.shape}",
+                f"Time points: {self.loaded_stack.num_frames}",
+                f"Frame pairs: {num_pairs}",
+                "",
+                "Available:",
+                "  - batch 3D PIV",
+                "  - export to HDF5 and/or NPZ",
+                "  - export VTK for ParaView",
+                "  - U, V, W vector components",
+                "  - xgrid, ygrid, zgrid coordinates",
+                f"  - 3D median despike: {median_state}",
+            ]
+
+            if (
+                self._last_pair_elapsed_seconds is not None
+                or self._last_3d_batch_elapsed_seconds is not None
+                or self._last_3d_export_summary is not None
+            ):
+                summary_lines.extend(["", "Last 3D run:"])
+
+                if self._last_pair_elapsed_seconds is not None:
+                    summary_lines.append(
+                        f"  - last pair time: {self._last_pair_elapsed_seconds:.1f} s"
+                    )
+
+                if self._last_3d_batch_elapsed_seconds is not None:
+                    summary_lines.append(
+                        f"  - total batch time: {self._last_3d_batch_elapsed_seconds:.1f} s"
+                    )
+
+                if self._last_3d_export_summary is not None:
+                    summary_lines.append(f"  - exported: {self._last_3d_export_summary}")
+
+            summary_lines.extend(
                 [
-                    "3D PIV results are saved for external visualization.",
-                    "",
-                    f"Input: {stack_label}",
-                    f"Shape (T, Z, Y, X): {self.loaded_stack.shape}",
-                    f"Time points: {self.loaded_stack.num_frames}",
-                    f"Frame pairs: {num_pairs}",
-                    "",
-                    "Available:",
-                    "  - batch 3D PIV",
-                    "  - export to HDF5 and/or NPZ",
-                    "  - export VTK for ParaView",
-                    "  - U, V, W vector components",
-                    "  - xgrid, ygrid, zgrid coordinates",
-                    f"  - 3D median despike: {median_state}",
                     "",
                     "3D visualization:",
                     "  - open exported VTK files manually in ParaView",
@@ -339,6 +364,8 @@ class MultiQuickPIVApp:
                     "  - SN filtering",
                 ]
             )
+
+            summary = "\n".join(summary_lines)
 
         self.preview_ax.text(
             0.03,
@@ -516,6 +543,9 @@ class MultiQuickPIVApp:
             vtk_paths = save_batch_vector_fields_to_vtk(out_path, result)
             written_names.append(f"{len(vtk_paths)} VTK file(s)")
 
+        if self.analysis_mode == "3d":
+            self._last_3d_export_summary = ", ".join(written_names)
+
         self._set_status("Export complete", 3000)
         self.var_result.set("Saved: " + ", ".join(written_names))
 
@@ -605,6 +635,11 @@ class MultiQuickPIVApp:
             self.current_result = None
             self.current_single_pair_indices = None
             self.current_export_name_hint = loaded.source_path.stem
+
+            self._batch_started_at = None
+            self._last_pair_elapsed_seconds = None
+            self._last_3d_batch_elapsed_seconds = None
+            self._last_3d_export_summary = None
 
             # 3D computeSN and SN filtering are currently unavailable because
             # multi_quickPIV.compute_SN fails for 3D inputs. Median despike remains usable.
@@ -842,6 +877,13 @@ class MultiQuickPIVApp:
                 and export_path is not None
             ):
                 try:
+                    batch_elapsed = None
+                    if self._batch_started_at is not None:
+                        batch_elapsed = time.perf_counter() - self._batch_started_at
+
+                    if self.analysis_mode == "3d":
+                        self._last_3d_batch_elapsed_seconds = batch_elapsed
+
                     self._export_batch_result_direct(
                         result,
                         export_path,
@@ -852,7 +894,13 @@ class MultiQuickPIVApp:
                             and options is not None
                             and options.export_vtk
                         ),
+                        batch_elapsed_seconds=batch_elapsed,
+                        last_pair_elapsed_seconds=self._last_pair_elapsed_seconds,
                     )
+
+                    if self.analysis_mode == "3d":
+                        self._show_3d_summary(title="3D batch complete")
+
                 except Exception as exc:
                     messagebox.showerror("Export error", str(exc))
                     self.var_result.set(f"Batch export failed: {exc}")
@@ -869,6 +917,9 @@ class MultiQuickPIVApp:
                     if total_elapsed is not None
                     else ""
                 )
+
+                self._last_3d_batch_elapsed_seconds = total_elapsed
+                self._show_3d_summary(title="3D batch complete")
 
                 self.var_result.set(
                     f"3D batch PIV complete: {len(result.pair_results)} pairs | "
