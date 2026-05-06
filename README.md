@@ -21,7 +21,7 @@ Supported input formats are:
 
 - **2D PIV time series**: a stack shaped as `(T, H, W)`, where `T` is time/frame index.
 - **3D PIV time series**: a stack shaped as `(T, Z, Y, X)`.
-- **Separate 3D TIFF time points**: multiple TIFF files where each file is one 3D volume shaped as `(Z, Y, X)`. These are internally stacked as `(T, Z, Y, X)`.
+- **Separate 3D TIFF time points**: multiple TIFF files where each file is one 3D volume shaped as `(Z, Y, X)`. These files are sorted by filename, shown to the user for confirmation, and internally stacked as `(T, Z, Y, X)`.
 
 Two main 2D evaluation modes are available:
 
@@ -148,6 +148,15 @@ A typical 3D workflow is:
 3. Load either:
    - one 4D HDF5/TIFF stack shaped as `(T, Z, Y, X)`, or
    - multiple 3D TIFF time-point files, each shaped as `(Z, Y, X)`.
+   When multiple 3D TIFF time-point files are selected, the GUI orders them by filename and shows the sorted order for confirmation before loading. Use zero-padded timepoint names so that filename sorting matches the real acquisition order, for example:
+
+  ```text
+  object_t000.tif
+  object_t001.tif
+  object_t002.tif
+
+  Avoid non-padded names such as object_t1.tif, object_t2.tif, and object_t10.tif, because filename sorting can place t10 before t2.
+
 4. Adjust the PIV parameters if needed.
 5. Run batch PIV.
 6. Choose one or more output options:

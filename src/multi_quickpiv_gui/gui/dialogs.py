@@ -189,5 +189,131 @@ class BatchExportDialog(simpledialog.Dialog):
             )
             return False
         return True
+    
+class ThreeDLoadInfoDialog(simpledialog.Dialog):
+    """Explain accepted 3D input formats before opening the file picker."""
+
+    def __init__(self, parent) -> None:
+        self.result: bool = True
+        self.dont_show_again = tk.BooleanVar(value=False)
+        super().__init__(parent, title="3D PIV input files")
+
+    def body(self, master):
+        message = (
+            "For 3D PIV, you can load either:\n\n"
+            "1. One 4D HDF5/TIFF stack shaped as (T, Z, Y, X), or\n"
+            "2. Multiple 3D TIFF files, where each file is one time point "
+            "shaped as (Z, Y, X).\n\n"
+            "When multiple TIFF files are selected, they are ordered by filename. "
+            "Use zero-padded timepoint names such as:\n\n"
+            "  embryo_t000.tif\n"
+            "  embryo_t001.tif\n"
+            "  embryo_t002.tif\n\n"
+            "Avoid names such as t1, t2, t10 because filename sorting can place "
+            "t10 before t2."
+        )
+
+        ttk.Label(
+            master,
+            text=message,
+            justify="left",
+            wraplength=520,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+
+        ttk.Checkbutton(
+            master,
+            text="Don't show again during this session",
+            variable=self.dont_show_again,
+        ).grid(row=1, column=0, sticky="w")
+
+        return master
+
+    def buttonbox(self):
+        box = ttk.Frame(self)
+
+        ttk.Button(box, text="Continue", command=self.ok).pack(
+            side="left", padx=5, pady=5
+        )
+        ttk.Button(box, text="Cancel", command=self.cancel).pack(
+            side="left", padx=5, pady=5
+        )
+
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+
+        box.pack()
+
+    def cancel(self, event=None):
+        self.result = False
+        super().cancel(event)
+
+    def apply(self) -> None:
+        self.result = True
+
+
+class ThreeDFileOrderDialog(simpledialog.Dialog):
+    """Confirm the filename-sorted order for multiple 3D TIFF time points."""
+
+    def __init__(self, parent, sorted_paths) -> None:
+        self.sorted_paths = list(sorted_paths)
+        self.result: bool = False
+        super().__init__(parent, title="Confirm 3D TIFF time order")
+
+    def body(self, master):
+        ttk.Label(
+            master,
+            text=(
+                "The selected 3D TIFF files will be loaded in filename order.\n"
+                "This order defines the time axis used for 3D PIV.\n\n"
+                "Please confirm that this is the correct time order:"
+            ),
+            justify="left",
+            wraplength=620,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+
+        frame = ttk.Frame(master)
+        frame.grid(row=1, column=0, sticky="nsew")
+
+        scrollbar = ttk.Scrollbar(frame, orient="vertical")
+        listbox = tk.Listbox(frame, width=90, height=min(15, len(self.sorted_paths)))
+
+        listbox.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        listbox.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=listbox.yview)
+
+        for index, path in enumerate(self.sorted_paths):
+            listbox.insert("end", f"{index:04d}: {path.name}")
+
+        ttk.Label(
+            master,
+            text=(
+                "If this order is wrong, cancel and rename the files using "
+                "zero-padded timepoint numbers."
+            ),
+            justify="left",
+            wraplength=620,
+        ).grid(row=2, column=0, sticky="w", pady=(10, 0))
+
+        return listbox
+
+    def buttonbox(self):
+        box = ttk.Frame(self)
+
+        ttk.Button(box, text="Use this order", command=self.ok).pack(
+            side="left", padx=5, pady=5
+        )
+        ttk.Button(box, text="Cancel", command=self.cancel).pack(
+            side="left", padx=5, pady=5
+        )
+
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+
+        box.pack()
+
+    def apply(self) -> None:
+        self.result = True
 
 

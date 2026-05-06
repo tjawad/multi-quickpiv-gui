@@ -35,6 +35,8 @@ from multi_quickpiv_gui.gui.dialogs import (
     BatchExportDialog,
     BatchRunDialog,
     BatchRunOptions,
+    ThreeDFileOrderDialog,
+    ThreeDLoadInfoDialog,
 )
 from multi_quickpiv_gui.runtime.batch import BatchRuntimeState
 
@@ -72,6 +74,7 @@ class MultiQuickPIVApp:
         self.current_export_name_hint = "piv_result"
         self.current_single_pair_indices: tuple[int, int] | None = None
         self.analysis_mode: str = "2d"
+        self._show_3d_load_info: bool = True
         self.preview_state = PreviewState()
         self._status_after_id: str | None = None
         self.params_form: ParamsFormState = create_params_form_state(self.root)
@@ -170,7 +173,7 @@ class MultiQuickPIVApp:
 
         self.btn_load_3d = ttk.Button(
             parent,
-            text="Load file for 3D PIV",
+            text="Load file(s) for 3D PIV",
             command=self.on_load_3d_file,
         )
         self.btn_load_3d.grid(row=1, column=0, sticky="ew", pady=4)
@@ -615,6 +618,13 @@ class MultiQuickPIVApp:
 
     def on_load_3d_file(self) -> None:
         """Load a 3D time-series stack for 3D PIV."""
+        if self._show_3d_load_info:
+            info_dialog = ThreeDLoadInfoDialog(self.root)
+            if not info_dialog.result:
+                return
+            if bool(info_dialog.dont_show_again.get()):
+                self._show_3d_load_info = False
+
         paths = filedialog.askopenfilenames(
             title="Load file(s) for 3D PIV",
             filetypes=[
@@ -625,6 +635,13 @@ class MultiQuickPIVApp:
         )
         if not paths:
             return
+
+        if len(paths) > 1:
+            sorted_paths = sorted((Path(path) for path in paths), key=lambda path: path.name)
+            order_dialog = ThreeDFileOrderDialog(self.root, sorted_paths)
+            if not order_dialog.result:
+                return
+            paths = [str(path) for path in sorted_paths]
 
         try:
             if len(paths) == 1:
