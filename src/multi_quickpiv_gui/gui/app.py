@@ -331,7 +331,7 @@ class MultiQuickPIVApp:
                 "  - export VTK for ParaView",
                 "  - U, V, W vector components",
                 "  - xgrid, ygrid, zgrid coordinates",
-                f"  - 3D median despike: {median_state}",
+                f"  - 3D median despike: currently {median_state}",
             ]
 
             if (

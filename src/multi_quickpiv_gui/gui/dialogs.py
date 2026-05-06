@@ -189,12 +189,12 @@ class BatchExportDialog(simpledialog.Dialog):
             )
             return False
         return True
-    
+
 class ThreeDLoadInfoDialog(simpledialog.Dialog):
     """Explain accepted 3D input formats before opening the file picker."""
 
     def __init__(self, parent) -> None:
-        self.result: bool = True
+        self.result: bool = False
         self.dont_show_again = tk.BooleanVar(value=False)
         super().__init__(parent, title="3D PIV input files")
 
@@ -206,9 +206,9 @@ class ThreeDLoadInfoDialog(simpledialog.Dialog):
             "shaped as (Z, Y, X).\n\n"
             "When multiple TIFF files are selected, they are ordered by filename. "
             "Use zero-padded timepoint names such as:\n\n"
-            "  embryo_t000.tif\n"
-            "  embryo_t001.tif\n"
-            "  embryo_t002.tif\n\n"
+            "  object_t000.tif\n"
+            "  object_t001.tif\n"
+            "  object_t002.tif\n\n"
             "Avoid names such as t1, t2, t10 because filename sorting can place "
             "t10 before t2."
         )
@@ -243,13 +243,8 @@ class ThreeDLoadInfoDialog(simpledialog.Dialog):
 
         box.pack()
 
-    def cancel(self, event=None):
-        self.result = False
-        super().cancel(event)
-
     def apply(self) -> None:
         self.result = True
-
 
 class ThreeDFileOrderDialog(simpledialog.Dialog):
     """Confirm the filename-sorted order for multiple 3D TIFF time points."""
@@ -275,7 +270,11 @@ class ThreeDFileOrderDialog(simpledialog.Dialog):
         frame.grid(row=1, column=0, sticky="nsew")
 
         scrollbar = ttk.Scrollbar(frame, orient="vertical")
-        listbox = tk.Listbox(frame, width=90, height=min(15, len(self.sorted_paths)))
+        listbox = tk.Listbox(
+            frame,
+            width=90,
+            height=min(15, len(self.sorted_paths)),
+        )
 
         listbox.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
