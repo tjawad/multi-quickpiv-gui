@@ -527,6 +527,8 @@ class MultiQuickPIVApp:
         export_npz: bool = False,
         export_h5: bool = False,
         export_vtk: bool = False,
+        batch_elapsed_seconds: float | None = None,
+        last_pair_elapsed_seconds: float | None = None,
     ) -> None:
         """Export a finished batch result directly to the chosen path."""
         written_names: list[str] = []
@@ -546,8 +548,22 @@ class MultiQuickPIVApp:
         if self.analysis_mode == "3d":
             self._last_3d_export_summary = ", ".join(written_names)
 
+        message = "Saved: " + ", ".join(written_names)
+
+        if self.analysis_mode == "3d":
+            timing_parts = []
+
+            if last_pair_elapsed_seconds is not None:
+                timing_parts.append(f"last pair {last_pair_elapsed_seconds:.1f} s")
+
+            if batch_elapsed_seconds is not None:
+                timing_parts.append(f"total {batch_elapsed_seconds:.1f} s")
+
+            if timing_parts:
+                message += " | 3D PIV time: " + ", ".join(timing_parts)
+
         self._set_status("Export complete", 3000)
-        self.var_result.set("Saved: " + ", ".join(written_names))
+        self.var_result.set(message)
 
     def _on_frame_slider(self, _value: str) -> None:
         if self.loaded_stack is None and self.loaded_piv_result is None:
