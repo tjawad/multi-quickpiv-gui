@@ -1,10 +1,4 @@
-"""Compatibility exports for GUI-independent post-processing helpers.
-
-New post-processing code lives under multi_quickpiv_gui.postprocessing.
-This module is kept so existing imports continue to work.
-"""
-
-from __future__ import annotations
+"""Post-processing tools for multi_quickPIV GUI vector fields."""
 
 from multi_quickpiv_gui.postprocessing.pipeline import (
     PostProcessResult,
