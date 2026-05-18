@@ -285,6 +285,40 @@ class MultiQuickPIVApp:
         self.btn_batch.config(state="normal")
         self.btn_export_video.config(state="disabled")
 
+    def _apply_2d_parameter_defaults(self) -> None:
+        """Apply safe default parameters for 2D PIV."""
+        self.params_form.intersize_x.set("64")
+        self.params_form.intersize_y.set("64")
+        self.params_form.intersize_z.set("64")
+
+        self.params_form.search_x.set("128")
+        self.params_form.search_y.set("128")
+        self.params_form.search_z.set("128")
+
+        self.params_form.step_x.set("32")
+        self.params_form.step_y.set("32")
+        self.params_form.step_z.set("32")
+
+        self.params_form.background_filter.set("Off")
+        self.params_form.downsample_factor.set("1×")
+
+    def _apply_3d_parameter_defaults(self) -> None:
+        """Apply practical default parameters for 3D PIV."""
+        self.params_form.intersize_x.set("20")
+        self.params_form.intersize_y.set("20")
+        self.params_form.intersize_z.set("20")
+
+        self.params_form.search_x.set("8")
+        self.params_form.search_y.set("8")
+        self.params_form.search_z.set("8")
+
+        self.params_form.step_x.set("10")
+        self.params_form.step_y.set("10")
+        self.params_form.step_z.set("10")
+
+        self.params_form.background_filter.set("High")
+        self.params_form.downsample_factor.set("3×")
+
     def _show_loaded_frame(self, frame_index: int) -> None:
         if self.loaded_stack is None:
             return
@@ -588,6 +622,7 @@ class MultiQuickPIVApp:
                 )
 
             self.analysis_mode = "2d"
+            self._apply_2d_parameter_defaults()
             set_sn_controls_enabled(self.params_form, enabled=True)
             set_parameter_mode_note(self.params_form, spatial_ndim=2)
             self.loaded_stack = loaded
@@ -663,6 +698,7 @@ class MultiQuickPIVApp:
                 )
 
             self.analysis_mode = "3d"
+            self._apply_3d_parameter_defaults()
             self.loaded_stack = loaded
             self.loaded_piv_result = None
             self.current_result = None
@@ -718,6 +754,7 @@ class MultiQuickPIVApp:
             loaded = load_saved_piv_result(path)
             
             self.analysis_mode = "2d"
+            self._apply_2d_parameter_defaults()
             set_sn_controls_enabled(self.params_form, enabled=True)
             set_parameter_mode_note(self.params_form, spatial_ndim=2)
             self.loaded_stack = None

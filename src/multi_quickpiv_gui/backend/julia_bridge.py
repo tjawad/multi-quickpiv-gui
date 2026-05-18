@@ -13,6 +13,26 @@ import numpy as np
 _JL = None
 _J = None
 
+_BACKGROUND_FILTER_THRESHOLDS = {
+    "Off": ("none", -1.0),
+    "Low": ("maximum", 25.0),
+    "Medium": ("maximum", 50.0),
+    "High": ("maximum", 100.0),
+    "Very High": ("maximum", 200.0),
+}
+
+
+def resolve_background_filter(level: str) -> tuple[str, float]:
+    """Resolve the GUI Background filter level to Julia backend arguments."""
+    try:
+        return _BACKGROUND_FILTER_THRESHOLDS[level]
+    except KeyError as exc:
+        allowed = ", ".join(_BACKGROUND_FILTER_THRESHOLDS)
+        raise ValueError(
+            f"Unknown Background filter level {level!r}. "
+            f"Expected one of: {allowed}."
+        ) from exc
+    
 
 @dataclass(slots=True)
 class JuliaPIVResult:
@@ -113,7 +133,19 @@ end
 
 function run_piv(img1::Array{Float64,2}, img2::Array{Float64,2};
                  corr_alg="nsqecc", interSize=(64,64), searchMargin=(128,128),
-                 step=(32,32), computeSN=true)
+                 step=(32,32), computeSN=true,
+                 backgroundFilter="none", backgroundThreshold=-1.0)
+
+    filtFun = maximum
+    threshold_value = backgroundThreshold
+
+    if backgroundFilter == "none"
+        threshold_value = -1.0
+    elseif backgroundFilter == "maximum"
+        filtFun = maximum
+    else
+        error("Unsupported backgroundFilter: $backgroundFilter")
+    end
 
     pivparams = multi_quickPIV.setPIVParameters(
         corr_alg=corr_alg,
@@ -121,6 +153,8 @@ function run_piv(img1::Array{Float64,2}, img2::Array{Float64,2};
         searchMargin=searchMargin,
         step=step,
         computeSN=computeSN,
+        filtFun=filtFun,
+        threshold=threshold_value,
     )
 
     VF, SN = multi_quickPIV.PIV(img1, img2, pivparams)
@@ -139,7 +173,20 @@ function run_piv_3d(img1::Array{Float64,3}, img2::Array{Float64,3};
                     interSize=(32,32,32),
                     searchMargin=(64,64,64),
                     step=(16,16,16),
-                    computeSN=true)
+                    computeSN=true,
+                    backgroundFilter="none",
+                    backgroundThreshold=-1.0)
+
+    filtFun = maximum
+    threshold_value = backgroundThreshold
+
+    if backgroundFilter == "none"
+        threshold_value = -1.0
+    elseif backgroundFilter == "maximum"
+        filtFun = maximum
+    else
+        error("Unsupported backgroundFilter: $backgroundFilter")
+    end
 
     pivparams = multi_quickPIV.setPIVParameters(
         corr_alg=corr_alg,
@@ -147,6 +194,8 @@ function run_piv_3d(img1::Array{Float64,3}, img2::Array{Float64,3};
         searchMargin=searchMargin,
         step=step,
         computeSN=computeSN,
+        filtFun=filtFun,
+        threshold=threshold_value,
     )
 
     VF, SN = multi_quickPIV.PIV(img1, img2, pivparams)
@@ -193,6 +242,7 @@ def run_piv(
     step: tuple[int, int] = (32, 32),
     compute_sn: bool = True,
     corr_alg: str = "nsqecc",
+    background_filter: str = "Off",
 ) -> JuliaPIVResult:
     """Run one PIV computation through the embedded Julia backend."""
     ensure_julia_initialized()
@@ -203,6 +253,12 @@ def run_piv(
     _J.img2 = np.asarray(img2, dtype=np.float64)
     _J.corr_alg = corr_alg
 
+    background_filter_name, background_filter_threshold = (
+        resolve_background_filter(background_filter)
+    )
+    _J.background_filter_name = background_filter_name
+    _J.background_filter_threshold = background_filter_threshold
+
     _J.eval(
         f"U_, V_, xg_, yg_, SN_ = run_piv("
         f"img1, img2; "
@@ -210,7 +266,9 @@ def run_piv(
         f"interSize=({inter_size[0]}, {inter_size[1]}), "
         f"searchMargin=({search_margin[0]}, {search_margin[1]}), "
         f"step=({step[0]}, {step[1]}), "
-        f"computeSN={'true' if compute_sn else 'false'})"
+        f"computeSN={'true' if compute_sn else 'false'}, "
+        f"backgroundFilter=background_filter_name, "
+        f"backgroundThreshold=background_filter_threshold)"
     )
 
     u = np.array(_J.eval("U_"))
@@ -237,6 +295,7 @@ def run_piv_3d(
     step: tuple[int, int, int] = (16, 16, 16),
     compute_sn: bool = True,
     corr_alg: str = "nsqecc",
+    background_filter: str = "Off",
 ) -> JuliaPIVResult:
     """Run one 3D PIV computation through the embedded Julia backend."""
     ensure_julia_initialized()
@@ -252,6 +311,12 @@ def run_piv_3d(
     _J.img2 = np.asarray(img2, dtype=np.float64)
     _J.corr_alg = corr_alg
 
+    background_filter_name, background_filter_threshold = (
+        resolve_background_filter(background_filter)
+    )
+    _J.background_filter_name = background_filter_name
+    _J.background_filter_threshold = background_filter_threshold
+
     _J.eval(
         f"U_, V_, W_, xg_, yg_, zg_, SN_ = run_piv_3d("
         f"img1, img2; "
@@ -259,7 +324,9 @@ def run_piv_3d(
         f"interSize=({inter_size[0]}, {inter_size[1]}, {inter_size[2]}), "
         f"searchMargin=({search_margin[0]}, {search_margin[1]}, {search_margin[2]}), "
         f"step=({step[0]}, {step[1]}, {step[2]}), "
-        f"computeSN={'true' if compute_sn else 'false'})"
+        f"computeSN={'true' if compute_sn else 'false'}, "
+        f"backgroundFilter=background_filter_name, "
+        f"backgroundThreshold=background_filter_threshold)"
     )
 
     u = np.array(_J.eval("U_"))
