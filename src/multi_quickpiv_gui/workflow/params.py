@@ -5,8 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 CorrAlg = str
+BackgroundFilterLevel = str
 SizeND = tuple[int, ...]
 
+BACKGROUND_FILTER_LEVELS = {
+    "Off",
+    "Low",
+    "Medium",
+    "High",
+    "Very High",
+}
 
 @dataclass(slots=True)
 class PIVRunParams:
@@ -17,12 +25,16 @@ class PIVRunParams:
     step: SizeND = (32, 32)
     compute_sn: bool = True
     corr_alg: CorrAlg = "nsqecc"
+    background_filter: BackgroundFilterLevel = "Off"
+    downsample_factor: int = 1
 
     def validate(self) -> None:
         """Validate the full run configuration."""
         self._validate_size("inter_size", self.inter_size)
         self._validate_size("search_margin", self.search_margin)
         self._validate_size("step", self.step)
+        self._validate_background_filter()
+        self._validate_downsample_factor()
 
     @staticmethod
     def _validate_size(name: str, value: SizeND) -> None:
@@ -32,6 +44,19 @@ class PIVRunParams:
 
         if any(component <= 0 for component in value):
             raise ValueError(f"{name} values must be greater than 0.")
+
+    def _validate_background_filter(self) -> None:
+        """Validate the low-signal/background filter level."""
+        if self.background_filter not in BACKGROUND_FILTER_LEVELS:
+            allowed = ", ".join(sorted(BACKGROUND_FILTER_LEVELS))
+            raise ValueError(
+                f"Background filter must be one of: {allowed}."
+            )
+
+    def _validate_downsample_factor(self) -> None:
+        """Validate the pre-PIV downsampling factor."""
+        if self.downsample_factor < 1:
+            raise ValueError("Downsampling factor must be at least 1.")
 
 
 @dataclass(slots=True)

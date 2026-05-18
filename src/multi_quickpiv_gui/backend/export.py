@@ -249,29 +249,52 @@ def vector_field_to_vtk(
     *,
     path: str | Path = "",
     mode: str = "w",
+    valid_interrogation: np.ndarray | None = None,
 ) -> ExportPath:
     """
     Store one 3D vector field as a legacy ASCII VTK file.
 
-    This mirrors quickPIV's vectorFieldToVTK logic as closely as possible:
-    - one vector field per .vtk file
-    - DATASET STRUCTURED_GRID
-    - integer grid coordinates
-    - VECTORS directions <type>
-    - vector component order written as V, U, W
-
     The GUI stores 3D arrays in (Z, Y, X) order.
+
+    VTK arrays written:
+    - finite_mask
+    - valid_interrogation
+    - directions
+    - direction_mag
     """
-    u_arr = np.asarray(u)
-    v_arr = np.asarray(v)
-    w_arr = np.asarray(w)
+    u_arr = np.asarray(u, dtype=np.float64)
+    v_arr = np.asarray(v, dtype=np.float64)
+    w_arr = np.asarray(w, dtype=np.float64)
 
     if u_arr.ndim != 3:
         raise ValueError("VTK vector-field export requires 3D U, V, W arrays.")
     if v_arr.shape != u_arr.shape or w_arr.shape != u_arr.shape:
         raise ValueError("U, V, and W must have the same shape for VTK export.")
 
-    data_type = _vtk_data_type(u_arr)
+    finite_arr = (
+        np.isfinite(u_arr)
+        & np.isfinite(v_arr)
+        & np.isfinite(w_arr)
+    )
+
+    if valid_interrogation is None:
+        valid_interrogation_arr = np.ones_like(finite_arr, dtype=np.uint8)
+    else:
+        valid_interrogation_arr = np.asarray(valid_interrogation, dtype=np.uint8)
+        if valid_interrogation_arr.shape != u_arr.shape:
+            raise ValueError(
+                "valid_interrogation must have the same shape as U, V, and W."
+            )
+
+    u_write = np.where(finite_arr, u_arr, 0.0)
+    v_write = np.where(finite_arr, v_arr, 0.0)
+    w_write = np.where(finite_arr, w_arr, 0.0)
+
+    direction_mag = np.sqrt(
+        u_write ** 2 + v_write ** 2 + w_write ** 2
+    )
+
+    data_type = "double"
 
     nz, ny, nx = u_arr.shape
     npoints = int(u_arr.size)
@@ -280,31 +303,51 @@ def vector_field_to_vtk(
 
     with open(out_path, mode, encoding="utf-8") as io:
         io.write("# vtk DataFile Version 2.0\n")
-        io.write("PIV3D.jl vector field\n")
+        io.write("multi_quickPIV GUI 3D vector field\n")
         io.write("ASCII\n")
         io.write("DATASET STRUCTURED_GRID\n")
         io.write(f"DIMENSIONS {nx} {ny} {nz}\n")
         io.write(f"POINTS {npoints} int\n")
 
-        # Match quickPIV's simple integer grid-coordinate output.
-        # quickPIV writes 1-based x/y/z coordinates.
+        # 1-based lattice coordinates, matching the previous quickPIV-style export.
         for z in range(nz):
             for y in range(ny):
                 for x in range(nx):
                     io.write(f"{x + 1} {y + 1} {z + 1}\n")
 
         io.write(f"POINT_DATA {npoints}\n")
-        io.write(f"VECTORS directions {data_type}\n")
 
-        # Match quickPIV's component order: V, U, W.
+        io.write("SCALARS finite_mask unsigned_char 1\n")
+        io.write("LOOKUP_TABLE default\n")
         for z in range(nz):
             for y in range(ny):
                 for x in range(nx):
+                    io.write(f"{1 if finite_arr[z, y, x] else 0}\n")
+
+        io.write("SCALARS valid_interrogation unsigned_char 1\n")
+        io.write("LOOKUP_TABLE default\n")
+        for z in range(nz):
+            for y in range(ny):
+                for x in range(nx):
+                    io.write(f"{int(valid_interrogation_arr[z, y, x])}\n")
+
+        io.write(f"VECTORS directions {data_type}\n")
+        for z in range(nz):
+            for y in range(ny):
+                for x in range(nx):
+                    # Image-axis convention: X=U, Y=V, Z=W.
                     io.write(
-                        f"{v_arr[z, y, x].item()} "
-                        f"{u_arr[z, y, x].item()} "
-                        f"{w_arr[z, y, x].item()}\n"
+                        f"{u_write[z, y, x].item()} "
+                        f"{v_write[z, y, x].item()} "
+                        f"{w_write[z, y, x].item()}\n"
                     )
+
+        io.write("SCALARS direction_mag double 1\n")
+        io.write("LOOKUP_TABLE default\n")
+        for z in range(nz):
+            for y in range(ny):
+                for x in range(nx):
+                    io.write(f"{direction_mag[z, y, x].item()}\n")
 
     return ExportPath(path=out_path)
 
@@ -349,6 +392,7 @@ def save_batch_vector_fields_to_vtk(
                 pair_result.u,
                 pair_result.v,
                 pair_result.w,
+                valid_interrogation=pair_result.valid_interrogation,
             )
         )
 

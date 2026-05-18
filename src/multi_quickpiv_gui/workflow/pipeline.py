@@ -9,11 +9,92 @@ import numpy as np
 
 from multi_quickpiv_gui.backend.core import apply_postprocessing
 from multi_quickpiv_gui.backend.julia_bridge import (
+    resolve_background_filter,
     run_piv as run_piv_2d_julia,
     run_piv_3d as run_piv_3d_julia,
 )
 from multi_quickpiv_gui.workflow.params import WorkflowParams
 
+
+def _downsample_pair(
+    img1: np.ndarray,
+    img2: np.ndarray,
+    factor: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply isotropic pre-PIV downsampling to one frame pair."""
+    if factor < 1:
+        raise ValueError("Downsampling factor must be at least 1.")
+
+    if factor == 1:
+        return img1, img2
+
+    if img1.ndim == 2:
+        return img1[::factor, ::factor], img2[::factor, ::factor]
+
+    if img1.ndim == 3:
+        return img1[::factor, ::factor, ::factor], img2[::factor, ::factor, ::factor]
+
+    raise ValueError(
+        f"Downsampling supports only 2D or 3D frame pairs, got shape {img1.shape}."
+    )
+
+def _compute_valid_interrogation_mask_3d(
+    volume: np.ndarray,
+    *,
+    vf_shape: tuple[int, int, int],
+    inter_size: tuple[int, int, int],
+    step: tuple[int, int, int],
+    background_filter: str,
+) -> np.ndarray:
+    """
+    Compute a per-vector validity mask from 3D interrogation volumes.
+
+    For the current Background filter implementation:
+      valid if max(interrogation_volume) >= threshold
+    """
+    valid = np.ones(vf_shape, dtype=np.uint8)
+
+    filter_name, threshold = resolve_background_filter(background_filter)
+    if filter_name == "none" or threshold < 0:
+        return valid
+
+    if filter_name != "maximum":
+        raise ValueError(f"Unsupported Background filter backend: {filter_name!r}")
+
+    if len(inter_size) != 3 or len(step) != 3:
+        raise ValueError("3D valid-interrogation export requires 3D inter_size and step.")
+
+    if any(value <= 0 for value in inter_size):
+        raise ValueError("inter_size values must be greater than 0.")
+    if any(value <= 0 for value in step):
+        raise ValueError("step values must be greater than 0.")
+
+    iz, iy, ix = inter_size
+    sz, sy, sx = step
+
+    for z in range(vf_shape[0]):
+        z0 = z * sz
+        z1 = z0 + iz
+
+        for y in range(vf_shape[1]):
+            y0 = y * sy
+            y1 = y0 + iy
+
+            for x in range(vf_shape[2]):
+                x0 = x * sx
+                x1 = x0 + ix
+
+                window = volume[z0:z1, y0:y1, x0:x1]
+
+                if window.size == 0:
+                    valid[z, y, x] = 0
+                    continue
+
+                finite_window = np.asarray(window)[np.isfinite(window)]
+                if finite_window.size == 0 or float(np.max(finite_window)) < threshold:
+                    valid[z, y, x] = 0
+
+    return valid
 
 @dataclass(slots=True)
 class PIVPairResult:
@@ -31,6 +112,7 @@ class PIVPairResult:
     # 3D-only fields. These stay None for 2D PIV.
     w: np.ndarray | None = None
     zg: np.ndarray | None = None
+    valid_interrogation: np.ndarray | None = None
 
 
 @dataclass(slots=True)
@@ -97,8 +179,16 @@ def run_piv_pair(
     img1_arr = np.asarray(img1)
     img2_arr = np.asarray(img2)
 
+    img1_arr, img2_arr = _downsample_pair(
+        img1_arr,
+        img2_arr,
+        params.run.downsample_factor,
+    )
+
     if img1_arr.shape != img2_arr.shape:
         raise ValueError("img1 and img2 must have the same shape.")
+    
+    valid_interrogation: np.ndarray | None = None
 
     if img1_arr.ndim == 2:
         raw = run_piv_2d_julia(
@@ -109,6 +199,7 @@ def run_piv_pair(
             step=params.run.step,
             compute_sn=params.run.compute_sn,
             corr_alg=params.run.corr_alg,
+            background_filter=params.run.background_filter,
         )
     elif img1_arr.ndim == 3:
         post = params.postprocess
@@ -126,6 +217,14 @@ def run_piv_pair(
             step=params.run.step,
             compute_sn=params.run.compute_sn,
             corr_alg=params.run.corr_alg,
+            background_filter=params.run.background_filter,
+        )
+        valid_interrogation = _compute_valid_interrogation_mask_3d(
+            img1_arr,
+            vf_shape=raw.u.shape,
+            inter_size=params.run.inter_size,  # Z,Y,X
+            step=params.run.step,              # Z,Y,X
+            background_filter=params.run.background_filter,
         )
     else:
         raise ValueError(
@@ -151,6 +250,7 @@ def run_piv_pair(
         sn_replaced=processed.sn_replaced,
         w=processed.w,
         zg=raw.zg,
+        valid_interrogation=valid_interrogation,
     )
 
 def run_batch_piv(

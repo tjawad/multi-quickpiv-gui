@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from multi_quickpiv_gui.workflow.params import (
     MedianDespikeParams,
@@ -32,6 +32,8 @@ class ParamsFormState:
 
     compute_sn: tk.BooleanVar
     corr_alg: tk.StringVar
+    background_filter: tk.StringVar
+    downsample_factor: tk.StringVar
 
     despike: tk.BooleanVar
     despike_ksize: tk.StringVar
@@ -79,6 +81,8 @@ def create_params_form_state(master: tk.Misc) -> ParamsFormState:
         ),
         compute_sn=tk.BooleanVar(master=master, value=True),
         corr_alg=tk.StringVar(master=master, value="nsqecc"),
+        background_filter=tk.StringVar(master=master, value="Off"),
+        downsample_factor=tk.StringVar(master=master, value="1×"),
         despike=tk.BooleanVar(master=master, value=False),
         despike_ksize=tk.StringVar(master=master, value="3"),
         despike_thr=tk.StringVar(master=master, value="3.5"),
@@ -100,6 +104,13 @@ def create_params_form_state(master: tk.Misc) -> ParamsFormState:
     )
 
     return form
+
+def _show_background_filter_info() -> None:
+    """Show a short explanation of the Background filter control."""
+    messagebox.showinfo(
+        "Background filter",
+        "Skips low-signal interrogation regions before PIV; High is recommended for 3D data.",
+    )
 
 
 def build_params_panel(parent: ttk.Frame, form: ParamsFormState) -> None:
@@ -152,14 +163,41 @@ def build_params_panel(parent: ttk.Frame, form: ParamsFormState) -> None:
         textvariable=form.mode_note,
     ).grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
+    ttk.Label(piv_frame, text="Downsampling").grid(row=5, column=0, sticky="w")
+    downsample_combo = ttk.Combobox(
+        piv_frame,
+        textvariable=form.downsample_factor,
+        values=("1×", "2×", "3×", "4×"),
+        width=12,
+        state="readonly",
+    )
+    downsample_combo.grid(row=5, column=1, columnspan=3, sticky="ew", pady=4)
+
+    ttk.Label(piv_frame, text="Background filter").grid(row=6, column=0, sticky="w")
+    background_combo = ttk.Combobox(
+        piv_frame,
+        textvariable=form.background_filter,
+        values=("Off", "Low", "Medium", "High", "Very High"),
+        width=12,
+        state="readonly",
+    )
+    background_combo.grid(row=6, column=1, columnspan=2, sticky="ew", pady=4)
+
+    ttk.Button(
+        piv_frame,
+        text="?",
+        width=3,
+        command=_show_background_filter_info,
+    ).grid(row=6, column=3, sticky="e", pady=4)
+
     form.compute_sn_widget = ttk.Checkbutton(
         piv_frame,
         text="computeSN",
         variable=form.compute_sn,
     )
-    form.compute_sn_widget.grid(row=5, column=0, sticky="w", pady=(8, 0))
+    form.compute_sn_widget.grid(row=7, column=0, sticky="w", pady=(8, 0))
 
-    ttk.Label(piv_frame, text="corr_alg").grid(row=6, column=0, sticky="w")
+    ttk.Label(piv_frame, text="corr_alg").grid(row=8, column=0, sticky="w")
     corr_alg_combo = ttk.Combobox(
         piv_frame,
         textvariable=form.corr_alg,
@@ -167,7 +205,7 @@ def build_params_panel(parent: ttk.Frame, form: ParamsFormState) -> None:
         width=12,
         state="normal",
     )
-    corr_alg_combo.grid(row=6, column=1, columnspan=3, sticky="ew", pady=4)
+    corr_alg_combo.grid(row=8, column=1, columnspan=3, sticky="ew", pady=4)
 
     filt_frame = ttk.LabelFrame(parent, text="Median Filter", padding=8)
     filt_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
@@ -205,7 +243,6 @@ def build_params_panel(parent: ttk.Frame, form: ParamsFormState) -> None:
         sn_frame, width=8, textvariable=form.sn_min
     ).grid(row=1, column=1, padx=4, pady=4)
 
-
 def _read_int(var: tk.Variable, field_name: str) -> int:
     """Read an integer value from a Tk variable."""
     try:
@@ -221,6 +258,19 @@ def _read_float(var: tk.Variable, field_name: str) -> float:
     except Exception as exc:
         raise ValueError(f"Invalid float for {field_name}.") from exc
 
+def _read_downsample_factor(var: tk.Variable) -> int:
+    """Read a factor-of downsampling value such as 1×, 2×, 3×, or 4×."""
+    text = str(var.get()).strip().lower().replace("×", "").replace("x", "")
+
+    try:
+        value = int(text)
+    except Exception as exc:
+        raise ValueError("Invalid downsampling factor.") from exc
+
+    if value < 1:
+        raise ValueError("Downsampling factor must be at least 1.")
+
+    return value
 
 def set_sn_controls_enabled(form: ParamsFormState, *, enabled: bool) -> None:
     """Enable or disable SN-related controls."""
@@ -282,6 +332,8 @@ def build_workflow_params(
             step=step,
             compute_sn=bool(form.compute_sn.get()),
             corr_alg=str(form.corr_alg.get()).strip() or "nsqecc",
+            background_filter=str(form.background_filter.get()).strip() or "Off",
+            downsample_factor=_read_downsample_factor(form.downsample_factor),
         ),
         postprocess=PostProcessParams(
             median_despike=MedianDespikeParams(
